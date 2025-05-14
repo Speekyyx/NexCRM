@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
 import TaskList from './pages/TaskList';
 import TaskDetail from './pages/TaskDetail';
+import ClientList from './pages/ClientList';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -21,6 +22,7 @@ const App = () => {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/tasks" element={<TaskList />} />
               <Route path="/tasks/:id" element={<TaskDetail />} />
+              <Route path="/clients" element={<ClientList />} />
             </Route>
           </Route>
         </Routes>

@@ -4,6 +4,7 @@ import com.nexcrm.dto.UserDto;
 import com.nexcrm.model.User;
 import com.nexcrm.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -14,6 +15,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/users")
 @RequiredArgsConstructor
+@Slf4j
 public class UserController {
 
     private final UserService userService;
@@ -37,6 +39,14 @@ public class UserController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/dev/list")
+    public ResponseEntity<List<UserDto>> getDevelopers() {
+        log.info("Requête reçue pour récupérer tous les développeurs");
+        List<UserDto> developers = userService.findByRole(User.Role.DEVELOPPEUR);
+        log.info("Nombre de développeurs trouvés: {}", developers.size());
+        return ResponseEntity.ok(developers);
+    }
+
     @GetMapping("/{id}")
     public ResponseEntity<UserDto> getUser(@PathVariable Long id) {
         return userService.findById(id)
@@ -51,7 +61,10 @@ public class UserController {
 
     @GetMapping("/role/{role}")
     public ResponseEntity<List<UserDto>> getUsersByRole(@PathVariable User.Role role) {
-        return ResponseEntity.ok(userService.findByRole(role));
+        log.info("Requête reçue pour récupérer les utilisateurs avec le rôle: {}", role);
+        List<UserDto> users = userService.findByRole(role);
+        log.info("Nombre d'utilisateurs trouvés avec le rôle {}: {}", role, users.size());
+        return ResponseEntity.ok(users);
     }
 
     @GetMapping("/username/{username}")

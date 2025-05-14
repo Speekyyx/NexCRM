@@ -33,6 +33,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         
         final String authorizationHeader = request.getHeader("Authorization");
+        final String requestURI = request.getRequestURI();
+        
+        log.info("Request URI: {}", requestURI);
+        log.info("Authorization header: {}", authorizationHeader != null ? "present" : "absent");
 
         String username = null;
         String jwt = null;
@@ -43,10 +47,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 username = jwtTokenUtil.extractUsername(jwt);
                 
                 log.info("JWT Token traité pour l'utilisateur: {}", username);
+            } else {
+                log.info("Aucun token JWT trouvé dans la requête");
             }
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                
+                log.info("Utilisateur trouvé: {} avec rôles: {}", username, userDetails.getAuthorities());
 
                 if (jwtTokenUtil.validateToken(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
@@ -56,21 +64,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
                     
-                    log.info("Utilisateur authentifié: {}", username);
+                    log.info("Utilisateur authentifié: {} avec autorités: {}", username, userDetails.getAuthorities());
+                } else {
+                    log.warn("Token invalide pour l'utilisateur: {}", username);
                 }
+            } else if (username == null) {
+                log.info("Aucun utilisateur trouvé dans le token");
+            } else {
+                log.info("Authentification déjà présente dans le contexte");
             }
         } catch (ExpiredJwtException e) {
             log.error("JWT Token expiré: {}", e.getMessage());
+        } catch (SignatureException e) {
+            log.error("Signature JWT invalide: {}", e.getMessage());
+        } catch (MalformedJwtException e) {
+            log.error("JWT Token malformé: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
             log.error("JWT Token non supporté: {}", e.getMessage());
-        } catch (MalformedJwtException e) {
-            log.error("JWT Token mal formé: {}", e.getMessage());
-        } catch (SignatureException e) {
-            log.error("Erreur de signature JWT: {}", e.getMessage());
         } catch (IllegalArgumentException e) {
-            log.error("JWT Token invalide: {}", e.getMessage());
+            log.error("JWT Token vide ou NULL: {}", e.getMessage());
         } catch (Exception e) {
-            log.error("Erreur lors du traitement du JWT Token: {}", e.getMessage());
+            log.error("Erreur lors du traitement du JWT: {}", e.getMessage());
         }
 
         filterChain.doFilter(request, response);
