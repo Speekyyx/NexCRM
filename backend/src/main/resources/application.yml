@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: NexCRM
+  datasource:
+    url: jdbc:postgresql://localhost:5432/nexcrm
+    username: postgres
+    password: Zetrez0987
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  h2:
+    console:
+      enabled: false # Désactivé car nous utilisons PostgreSQL
+
+server:
+  port: 8080
+
+jwt:
+  # Clé secrète pour signature JWT - au moins 256 bits (32 caractères) pour HS256
+  secret: DK@Y6HJiob989hh$BVKLbbjb773JuhYgcf67Febnku
+  expiration: 86400000 # 24 heures en millisecondes 

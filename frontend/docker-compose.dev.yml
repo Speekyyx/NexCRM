@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: nexcrm-frontend-dev
+    ports:
+      - "3000:3000"
+    volumes:
+      # Montage des dossiers source pour le hot-reload
+      - ./src:/app/src
+      - ./public:/app/public
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:8080
+    restart: unless-stopped 
