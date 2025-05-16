@@ -11,6 +11,9 @@ const Card = styled(motion.div)`
   position: relative;
   overflow: hidden;
   transition: all ${({ theme }) => theme.transitions.normal};
+  height: 250px; /* Hauteur fixe */
+  display: flex;
+  flex-direction: column;
   
   &:hover {
     transform: translateY(-5px);
@@ -31,6 +34,13 @@ const Card = styled(motion.div)`
       return theme.colors.primary;
     }};
   }
+`;
+
+const ContentArea = styled.div`
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 `;
 
 const Title = styled.h3`
@@ -159,19 +169,21 @@ const TaskCard = ({ task }) => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <Title>{task.titre}</Title>
-        <Description>{task.description}</Description>
-        
-        {task.assignedUser && (
-          <UserName>
-            <UserInitials>{getInitials(task.assignedUser)}</UserInitials>
-            {task.assignedUser.prenom} {task.assignedUser.nom}
-          </UserName>
-        )}
-        
-        <DateInfo>
-          Échéance: {formatDate(task.dateEcheance)}
-        </DateInfo>
+        <ContentArea>
+          <Title>{task.titre}</Title>
+          <Description>{task.description}</Description>
+          
+          {task.assignedUser && (
+            <UserName>
+              <UserInitials>{getInitials(task.assignedUser)}</UserInitials>
+              {task.assignedUser.prenom} {task.assignedUser.nom}
+            </UserName>
+          )}
+          
+          <DateInfo>
+            Échéance: {formatDate(task.dateEcheance)}
+          </DateInfo>
+        </ContentArea>
         
         <Footer>
           <Status status={task.statut}>

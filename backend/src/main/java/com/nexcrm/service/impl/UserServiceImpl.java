@@ -62,6 +62,33 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public UserDto createWithPassword(UserDto userDto, String password) {
+        if (userRepository.existsByUsername(userDto.getUsername())) {
+            throw new IllegalArgumentException("Nom d'utilisateur déjà utilisé");
+        }
+        if (userRepository.existsByEmail(userDto.getEmail())) {
+            throw new IllegalArgumentException("Email déjà utilisé");
+        }
+        
+        // Valider le mot de passe
+        if (password == null || password.length() < 6) {
+            throw new IllegalArgumentException("Le mot de passe doit contenir au moins 6 caractères");
+        }
+
+        User user = User.builder()
+                .username(userDto.getUsername())
+                .password(passwordEncoder.encode(password))
+                .nom(userDto.getNom())
+                .prenom(userDto.getPrenom())
+                .email(userDto.getEmail())
+                .role(userDto.getRole())
+                .build();
+
+        User savedUser = userRepository.save(user);
+        return UserDto.fromEntity(savedUser);
+    }
+
+    @Override
     public UserDto update(Long id, UserDto userDto) {
         User existingUser = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé avec l'ID: " + id));

@@ -1,0 +1,19 @@
+.mention-tag {
+  background: rgba(255, 122, 80, 0.2);
+  color: #ff7a50;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin: 0 0.2rem;
+  font-size: 0.9em;
+  display: inline-block;
+}
+
+.mention-tag-client {
+  background: rgba(80, 160, 255, 0.15);
+  color: #50a0ff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  margin: 0 0.2rem;
+  font-size: 0.9em;
+  display: inline-block;
+} 

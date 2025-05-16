@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AnimatePresence } from 'framer-motion';
 import Dashboard from './pages/Dashboard';
 import Login from './pages/Login';
+import Register from './pages/Register';
 import TaskList from './pages/TaskList';
 import TaskDetail from './pages/TaskDetail';
 import ClientList from './pages/ClientList';
@@ -15,6 +16,7 @@ const App = () => {
       <AnimatePresence mode="wait">
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/register" element={<Register />} />
           
           <Route element={<ProtectedRoute />}>
             <Route element={<Layout />}>

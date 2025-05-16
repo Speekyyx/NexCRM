@@ -8,6 +8,7 @@ import java.util.Optional;
 
 public interface UserService {
     UserDto create(UserDto userDto);
+    UserDto createWithPassword(UserDto userDto, String password);
     UserDto update(Long id, UserDto userDto);
     void delete(Long id);
     Optional<UserDto> findById(Long id);

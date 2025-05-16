@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { authService } from '../services/authService';
 import Button from '../components/Button';
 
@@ -113,18 +113,90 @@ const ErrorMessage = styled(motion.div)`
   background: rgba(244, 63, 94, 0.1);
   border-radius: ${({ theme }) => theme.borderRadius.md};
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    margin-right: 0.5rem;
+    width: 20px;
+    height: 20px;
+  }
 `;
+
+const SuccessMessage = styled(motion.div)`
+  color: ${({ theme }) => theme.colors.success};
+  font-size: 0.9rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  background: rgba(34, 197, 94, 0.1);
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    margin-right: 0.5rem;
+    width: 20px;
+    height: 20px;
+  }
+`;
+
+const RegisterLink = styled.div`
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.9rem;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  
+  a {
+    color: ${({ theme }) => theme.colors.primary};
+    text-decoration: none;
+    font-weight: 500;
+    
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+`;
+
+const ErrorIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 8V12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M12 16H12.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const SuccessIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <path d="M8 12L11 15L16 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
 
 const Login = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  useEffect(() => {
+    // Vérifier si un message est passé via l'état de navigation
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Effacer le state pour éviter que le message réapparaisse à chaque rendu
+      window.history.replaceState({}, document.title);
+    }
+  }, [location]);
   
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSuccessMessage('');
     
     if (!username || !password) {
       setError('Veuillez remplir tous les champs');
@@ -190,8 +262,19 @@ const Login = () => {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
             >
+              <ErrorIcon />
               {error}
             </ErrorMessage>
+          )}
+          
+          {successMessage && (
+            <SuccessMessage
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <SuccessIcon />
+              {successMessage}
+            </SuccessMessage>
           )}
           
           <Button 
@@ -203,6 +286,10 @@ const Login = () => {
             {loading ? 'Connexion...' : 'Se connecter'}
           </Button>
         </Form>
+        
+        <RegisterLink>
+          Vous n'avez pas de compte? <Link to="/register">S'inscrire</Link>
+        </RegisterLink>
       </LoginCard>
     </LoginContainer>
   );

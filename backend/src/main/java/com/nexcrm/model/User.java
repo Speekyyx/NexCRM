@@ -6,7 +6,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Entity
@@ -42,6 +44,9 @@ public class User {
 
     @OneToMany(mappedBy = "assignedUser", fetch = FetchType.LAZY)
     private Set<Task> assignedTasks = new HashSet<>();
+
+    @OneToMany(mappedBy = "author", fetch = FetchType.LAZY)
+    private List<Comment> comments = new ArrayList<>();
 
     public enum Role {
         DEVELOPPEUR,

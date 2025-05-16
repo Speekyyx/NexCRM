@@ -211,9 +211,17 @@ const Label = styled.label`
   color: ${({ theme }) => theme.colors.textSecondary};
 `;
 
+const InputWrapper = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  width: 100%;
+`;
+
 const Input = styled.input`
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid ${({ hasError, theme }) => 
+    hasError ? theme.colors.error : 'rgba(255, 255, 255, 0.1)'};
   border-radius: ${({ theme }) => theme.borderRadius.md};
   padding: 0.75rem;
   color: ${({ theme }) => theme.colors.text};
@@ -221,8 +229,17 @@ const Input = styled.input`
   
   &:focus {
     outline: none;
-    border-color: ${({ theme }) => theme.colors.primary};
+    border-color: ${({ hasError, theme }) => 
+      hasError ? theme.colors.error : theme.colors.primary};
+    box-shadow: ${({ hasError, theme }) => 
+      hasError ? `0 0 0 1px ${theme.colors.error}` : 'none'};
   }
+`;
+
+const ErrorMessage = styled.span`
+  color: ${({ theme }) => theme.colors.error};
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
 `;
 
 const ButtonGroup = styled.div`
@@ -244,6 +261,7 @@ const ClientList = () => {
     adresse: '',
     societe: ''
   });
+  const [formErrors, setFormErrors] = useState({});
   
   useEffect(() => {
     fetchClients();
@@ -270,6 +288,7 @@ const ClientList = () => {
       adresse: '',
       societe: ''
     });
+    setFormErrors({});
     setShowForm(true);
   };
   
@@ -282,6 +301,7 @@ const ClientList = () => {
       adresse: client.adresse || '',
       societe: client.societe || ''
     });
+    setFormErrors({});
     setShowForm(true);
   };
   
@@ -307,10 +327,20 @@ const ClientList = () => {
       ...formData,
       [name]: value
     });
+    
+    // Effacer l'erreur quand l'utilisateur modifie le champ
+    if (formErrors[name]) {
+      setFormErrors({
+        ...formErrors,
+        [name]: null
+      });
+    }
   };
   
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormErrors({});
+    
     try {
       if (currentClient) {
         // Mise à jour
@@ -323,6 +353,22 @@ const ClientList = () => {
       handleCloseForm();
     } catch (error) {
       console.error('Erreur lors de l\'enregistrement du client:', error);
+      
+      // Traitement des erreurs de validation
+      if (error.response && error.response.data) {
+        const apiError = error.response.data;
+        
+        // Gestion des erreurs de champs spécifiques
+        if (apiError.fieldErrors) {
+          setFormErrors(apiError.fieldErrors);
+        } 
+        // Message d'erreur général
+        else if (apiError.message) {
+          alert(apiError.message);
+        }
+      } else {
+        alert('Une erreur est survenue lors de l\'enregistrement du client.');
+      }
     }
   };
   
@@ -359,62 +405,82 @@ const ClientList = () => {
               <FormRow>
                 <InputGroup>
                   <Label htmlFor="nom">Nom</Label>
-                  <Input 
-                    type="text" 
-                    id="nom" 
-                    name="nom" 
-                    value={formData.nom} 
-                    onChange={handleInputChange} 
-                    required 
-                  />
+                  <InputWrapper>
+                    <Input 
+                      type="text" 
+                      id="nom" 
+                      name="nom" 
+                      value={formData.nom} 
+                      onChange={handleInputChange} 
+                      required 
+                      hasError={!!formErrors.nom}
+                    />
+                    {formErrors.nom && <ErrorMessage>{formErrors.nom}</ErrorMessage>}
+                  </InputWrapper>
                 </InputGroup>
                 
                 <InputGroup>
                   <Label htmlFor="email">Email</Label>
-                  <Input 
-                    type="email" 
-                    id="email" 
-                    name="email" 
-                    value={formData.email} 
-                    onChange={handleInputChange} 
-                    required 
-                  />
+                  <InputWrapper>
+                    <Input 
+                      type="email" 
+                      id="email" 
+                      name="email" 
+                      value={formData.email} 
+                      onChange={handleInputChange} 
+                      required 
+                      hasError={!!formErrors.email}
+                    />
+                    {formErrors.email && <ErrorMessage>{formErrors.email}</ErrorMessage>}
+                  </InputWrapper>
                 </InputGroup>
               </FormRow>
               
               <FormRow>
                 <InputGroup>
                   <Label htmlFor="telephone">Téléphone</Label>
-                  <Input 
-                    type="tel" 
-                    id="telephone" 
-                    name="telephone" 
-                    value={formData.telephone} 
-                    onChange={handleInputChange} 
-                  />
+                  <InputWrapper>
+                    <Input 
+                      type="tel" 
+                      id="telephone" 
+                      name="telephone" 
+                      value={formData.telephone} 
+                      onChange={handleInputChange} 
+                      hasError={!!formErrors.telephone}
+                    />
+                    {formErrors.telephone && <ErrorMessage>{formErrors.telephone}</ErrorMessage>}
+                  </InputWrapper>
                 </InputGroup>
                 
                 <InputGroup>
                   <Label htmlFor="societe">Société</Label>
-                  <Input 
-                    type="text" 
-                    id="societe" 
-                    name="societe" 
-                    value={formData.societe} 
-                    onChange={handleInputChange} 
-                  />
+                  <InputWrapper>
+                    <Input 
+                      type="text" 
+                      id="societe" 
+                      name="societe" 
+                      value={formData.societe} 
+                      onChange={handleInputChange} 
+                      hasError={!!formErrors.societe}
+                    />
+                    {formErrors.societe && <ErrorMessage>{formErrors.societe}</ErrorMessage>}
+                  </InputWrapper>
                 </InputGroup>
               </FormRow>
               
               <InputGroup>
                 <Label htmlFor="adresse">Adresse</Label>
-                <Input 
-                  type="text" 
-                  id="adresse" 
-                  name="adresse" 
-                  value={formData.adresse} 
-                  onChange={handleInputChange} 
-                />
+                <InputWrapper>
+                  <Input 
+                    type="text" 
+                    id="adresse" 
+                    name="adresse" 
+                    value={formData.adresse} 
+                    onChange={handleInputChange} 
+                    hasError={!!formErrors.adresse}
+                  />
+                  {formErrors.adresse && <ErrorMessage>{formErrors.adresse}</ErrorMessage>}
+                </InputWrapper>
               </InputGroup>
               
               <ButtonGroup>

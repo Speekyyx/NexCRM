@@ -1,6 +1,7 @@
 package com.nexcrm.service.impl;
 
 import com.nexcrm.dto.ClientDto;
+import com.nexcrm.exception.EmailAlreadyExistsException;
 import com.nexcrm.model.Client;
 import com.nexcrm.repository.ClientRepository;
 import com.nexcrm.service.ClientService;
@@ -26,7 +27,7 @@ public class ClientServiceImpl implements ClientService {
         // Vérifier si l'email existe déjà
         if (clientRepository.existsByEmail(clientDto.getEmail())) {
             log.error("Un client avec l'email {} existe déjà", clientDto.getEmail());
-            throw new IllegalArgumentException("Un client avec cet email existe déjà");
+            throw new EmailAlreadyExistsException(clientDto.getEmail());
         }
         
         // Convertir DTO en entité
@@ -58,7 +59,7 @@ public class ClientServiceImpl implements ClientService {
         if (!existingClient.getEmail().equals(clientDto.getEmail()) 
                 && clientRepository.existsByEmail(clientDto.getEmail())) {
             log.error("Un autre client utilise déjà l'email {}", clientDto.getEmail());
-            throw new IllegalArgumentException("Cet email est déjà utilisé par un autre client");
+            throw new EmailAlreadyExistsException(clientDto.getEmail());
         }
         
         // Mettre à jour les champs
