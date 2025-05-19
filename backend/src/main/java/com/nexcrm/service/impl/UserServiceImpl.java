@@ -148,8 +148,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public List<UserDto> findByRole(User.Role role) {
-        return userRepository.findAll().stream()
-                .filter(user -> user.getRole() == role)
+        return userRepository.findByRole(role).stream()
                 .map(UserDto::fromEntity)
                 .collect(Collectors.toList());
     }

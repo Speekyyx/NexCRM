@@ -123,6 +123,11 @@ const UserInitials = styled.span`
   color: white;
 `;
 
+const AssignedUsers = styled.div`
+  display: flex;
+  gap: 0.5rem;
+`;
+
 const translateStatus = (status) => {
   const statusMap = {
     'A_FAIRE': 'À faire',
@@ -173,11 +178,15 @@ const TaskCard = ({ task }) => {
           <Title>{task.titre}</Title>
           <Description>{task.description}</Description>
           
-          {task.assignedUser && (
-            <UserName>
-              <UserInitials>{getInitials(task.assignedUser)}</UserInitials>
-              {task.assignedUser.prenom} {task.assignedUser.nom}
-            </UserName>
+          {task.assignedUsers && task.assignedUsers.length > 0 && (
+            <AssignedUsers>
+              {task.assignedUsers.map(user => (
+                <UserName key={user.id}>
+                  <UserInitials>{getInitials(user)}</UserInitials>
+                  {user.prenom} {user.nom}
+                </UserName>
+              ))}
+            </AssignedUsers>
           )}
           
           <DateInfo>

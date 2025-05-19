@@ -3,8 +3,11 @@ package com.nexcrm.model;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,10 +18,13 @@ import java.util.Set;
 
 @Entity
 @Table(name = "tasks")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = {"assignedUsers", "comments", "attachments"})
+@EqualsAndHashCode(exclude = {"assignedUsers", "comments", "attachments"})
 public class Task {
 
     @Id
@@ -40,9 +46,13 @@ public class Task {
     @Enumerated(EnumType.STRING)
     private Status statut;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "user_id")
-    private User assignedUser;
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(
+        name = "task_assigned_users",
+        joinColumns = @JoinColumn(name = "task_id", referencedColumnName = "id", foreignKey = @ForeignKey(name = "fk_task_users_task_id", foreignKeyDefinition = "FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE")),
+        inverseJoinColumns = @JoinColumn(name = "user_id", referencedColumnName = "id", foreignKey = @ForeignKey(name = "fk_task_users_user_id", foreignKeyDefinition = "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE"))
+    )
+    private Set<User> assignedUsers = new HashSet<>();
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "client_id")

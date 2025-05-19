@@ -16,6 +16,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.HashSet;
 
 @Service
 @RequiredArgsConstructor
@@ -37,11 +39,13 @@ public class TaskServiceImpl implements TaskService {
                 .cout(taskDto.getCout())
                 .build();
 
-        // Assignation d'un utilisateur
-        if (taskDto.getAssignedUser() != null && taskDto.getAssignedUser().getId() != null) {
-            User user = userRepository.findById(taskDto.getAssignedUser().getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé"));
-            task.setAssignedUser(user);
+        // Assignation des utilisateurs
+        if (taskDto.getAssignedUsers() != null && !taskDto.getAssignedUsers().isEmpty()) {
+            Set<User> users = taskDto.getAssignedUsers().stream()
+                    .map(userDto -> userRepository.findById(userDto.getId())
+                            .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé")))
+                    .collect(Collectors.toSet());
+            task.setAssignedUsers(users);
         }
 
         // Assignation d'un client
@@ -67,13 +71,15 @@ public class TaskServiceImpl implements TaskService {
         existingTask.setStatut(taskDto.getStatut());
         existingTask.setCout(taskDto.getCout());
 
-        // Mise à jour de l'utilisateur assigné
-        if (taskDto.getAssignedUser() != null && taskDto.getAssignedUser().getId() != null) {
-            User user = userRepository.findById(taskDto.getAssignedUser().getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé"));
-            existingTask.setAssignedUser(user);
+        // Mise à jour des utilisateurs assignés
+        if (taskDto.getAssignedUsers() != null) {
+            Set<User> users = taskDto.getAssignedUsers().stream()
+                    .map(userDto -> userRepository.findById(userDto.getId())
+                            .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé")))
+                    .collect(Collectors.toSet());
+            existingTask.setAssignedUsers(users);
         } else {
-            existingTask.setAssignedUser(null);
+            existingTask.setAssignedUsers(new HashSet<>());
         }
 
         // Mise à jour du client
@@ -117,7 +123,7 @@ public class TaskServiceImpl implements TaskService {
     public List<TaskDto> findByAssignedUserId(Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé"));
-        return taskRepository.findByAssignedUser(user).stream()
+        return taskRepository.findByAssignedUsersContaining(user).stream()
                 .map(TaskDto::fromEntity)
                 .collect(Collectors.toList());
     }
@@ -179,8 +185,28 @@ public class TaskServiceImpl implements TaskService {
                 .orElseThrow(() -> new IllegalArgumentException("Tâche non trouvée avec l'ID: " + taskId));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé avec l'ID: " + userId));
-        task.setAssignedUser(user);
+        
+        if (task.getAssignedUsers() == null) {
+            task.setAssignedUsers(new HashSet<>());
+        }
+        task.getAssignedUsers().add(user);
+        
         Task updatedTask = taskRepository.save(task);
         return TaskDto.fromEntity(updatedTask);
+    }
+
+    @Override
+    public TaskDto unassignUser(Long taskId, Long userId) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new IllegalArgumentException("Tâche non trouvée avec l'ID: " + taskId));
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé avec l'ID: " + userId));
+        
+        if (task.getAssignedUsers() != null) {
+            task.getAssignedUsers().remove(user);
+            Task updatedTask = taskRepository.save(task);
+            return TaskDto.fromEntity(updatedTask);
+        }
+        return TaskDto.fromEntity(task);
     }
 } 

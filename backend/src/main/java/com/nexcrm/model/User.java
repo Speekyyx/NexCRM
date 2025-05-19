@@ -3,8 +3,11 @@ package com.nexcrm.model;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
+import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -13,10 +16,13 @@ import java.util.Set;
 
 @Entity
 @Table(name = "users")
-@Data
+@Getter
+@Setter
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@ToString(exclude = {"assignedTasks", "comments"})
+@EqualsAndHashCode(exclude = {"assignedTasks", "comments"})
 public class User {
 
     @Id
@@ -42,7 +48,7 @@ public class User {
     @Column(nullable = false)
     private Role role;
 
-    @OneToMany(mappedBy = "assignedUser", fetch = FetchType.LAZY)
+    @ManyToMany(mappedBy = "assignedUsers", fetch = FetchType.LAZY)
     private Set<Task> assignedTasks = new HashSet<>();
 
     @OneToMany(mappedBy = "author", fetch = FetchType.LAZY)

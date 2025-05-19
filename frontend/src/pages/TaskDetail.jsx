@@ -107,11 +107,16 @@ const DetailValue = styled.span`
 const UserCard = styled.div`
   display: flex;
   align-items: center;
-  gap: 1rem;
+  justify-content: space-between;
   padding: 1rem;
   background: rgba(255, 255, 255, 0.05);
   border-radius: ${({ theme }) => theme.borderRadius.md};
   margin-bottom: 1rem;
+  transition: all ${({ theme }) => theme.transitions.normal};
+  
+  &:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
 `;
 
 const UserAvatar = styled.div`
@@ -128,7 +133,8 @@ const UserAvatar = styled.div`
 
 const UserInfo = styled.div`
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
 `;
 
 const UserName = styled.span`
@@ -516,20 +522,17 @@ const TextArea = styled.textarea`
 `;
 
 const Select = styled.select`
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: ${({ theme }) => theme.borderRadius.md};
-  padding: 0.75rem;
+  background: ${({ theme }) => theme.colors.background};
   color: ${({ theme }) => theme.colors.text};
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  padding: 0.5rem;
   font-size: 1rem;
+  width: 100%;
   
   &:focus {
     outline: none;
     border-color: ${({ theme }) => theme.colors.primary};
-  }
-  
-  option {
-    background: #1a1a2e;
   }
 `;
 
@@ -662,37 +665,106 @@ const UploadIcon = () => (
   </svg>
 );
 
-const TaskDetail = () => {
-  const { id } = useParams();
+const AssignedUsersHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+`;
+
+const AssignedCount = styled.span`
+  font-size: 0.9rem;
+  color: ${({ theme }) => theme.colors.textSecondary};
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0.3rem 0.8rem;
+  border-radius: ${({ theme }) => theme.borderRadius.full};
+`;
+
+const RemoveButton = styled.button`
+  background: none;
+  border: none;
+  color: ${({ theme }) => theme.colors.danger};
+  padding: 0.5rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  
+  &:hover {
+    color: ${({ theme }) => theme.colors.dangerHover};
+    transform: scale(1.1);
+  }
+  
+  &:disabled {
+    color: ${({ theme }) => theme.colors.textSecondary};
+    cursor: not-allowed;
+    
+    &:hover {
+      transform: none;
+    }
+  }
+  
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const AssignmentRow = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+`;
+
+const AddButton = styled.button`
+  background: none;
+  border: 2px dashed ${({ theme }) => theme.colors.border};
+  color: ${({ theme }) => theme.colors.primary};
+  padding: 0.5rem 1rem;
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  cursor: pointer;
+  width: 100%;
+  margin-top: 1rem;
+  transition: all 0.2s;
+  
+  &:hover {
+    border-color: ${({ theme }) => theme.colors.primary};
+    background: ${({ theme }) => theme.colors.primary}10;
+  }
+`;
+
+const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = false }) => {
+  const { id: paramTaskId } = useParams();
   const navigate = useNavigate();
   const [task, setTask] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(null);
   const [comments, setComments] = useState([]);
+  const [developers, setDevelopers] = useState([]);
+  const [clients, setClients] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [editedTask, setEditedTask] = useState(null);
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
-  const [showEditForm, setShowEditForm] = useState(false);
-  const [editedTask, setEditedTask] = useState(null);
-  const [developers, setDevelopers] = useState([]);
-  const [clients, setClients] = useState([]);
-  const [submittingTask, setSubmittingTask] = useState(false);
-  const [attachments, setAttachments] = useState([]);
-  const [uploadingFile, setUploadingFile] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [mentionSearch, setMentionSearch] = useState('');
-  const [showMentionDropdown, setShowMentionDropdown] = useState(false);
-  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 });
-  const [mentionType, setMentionType] = useState(null); // 'user' ou 'client'
+  const [mentionDropdownVisible, setMentionDropdownVisible] = useState(false);
+  const [mentionSearchResults, setMentionSearchResults] = useState([]);
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const [assignmentRows, setAssignmentRows] = useState([{ id: Date.now() }]);
   const [selectedMentions, setSelectedMentions] = useState({
     users: new Set(),
     clients: new Set()
   });
   const [formattedComment, setFormattedComment] = useState('');
+  const commentInputRef = useRef(null);
   
-  const textareaRef = useRef(null);
-  const mirrorRef = useRef(null);
-  
+  const activeTaskId = propTaskId || paramTaskId;
+
   useEffect(() => {
     // Récupérer l'utilisateur connecté à partir du localStorage
     const userJson = localStorage.getItem('user');
@@ -705,109 +777,97 @@ const TaskDetail = () => {
       }
     }
   }, []);
-  
+
   useEffect(() => {
-    const fetchTask = async () => {
-      try {
-        // Si l'ID est "new", nous sommes en mode création
-        if (id === 'new') {
-          setLoading(false);
-          return;
-        }
-        
-        const taskData = await taskService.getTaskById(id);
-        setTask(taskData);
-      } catch (err) {
-        console.error(`Erreur lors du chargement de la tâche ${id}:`, err);
-        setError('Impossible de charger les détails de la tâche. Veuillez réessayer.');
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchTask();
-  }, [id]);
-  
-  useEffect(() => {
-    const fetchComments = async () => {
-      if (id === 'new' || !id) return;
-      
-      try {
-        const commentData = await commentService.getCommentsByTaskId(id);
-        setComments(commentData);
-      } catch (err) {
-        console.error(`Erreur lors du chargement des commentaires pour la tâche ${id}:`, err);
-        // Ne pas définir d'erreur ici pour ne pas bloquer le rendu de la page
-      }
-    };
-    
-    fetchComments();
-  }, [id]);
-  
-  useEffect(() => {
-    const fetchDevelopers = async () => {
-      try {
-        const data = await userService.getDeveloperUsers();
-        setDevelopers(data);
-      } catch (error) {
-        console.error('Erreur lors du chargement des développeurs:', error);
-      }
-    };
-    
-    const fetchClients = async () => {
-      try {
-        const data = await clientService.getAllClients();
-        setClients(data);
-      } catch (error) {
-        console.error('Erreur lors du chargement des clients:', error);
-      }
-    };
-    
-    fetchDevelopers();
-    fetchClients();
-  }, []);
-  
+    if (activeTaskId) {
+      fetchTask();
+      fetchComments();
+      fetchDevelopers();
+      fetchClients();
+      fetchAttachments();
+    }
+  }, [activeTaskId]);
+
   useEffect(() => {
     if (task && !editedTask) {
       setEditedTask({
         ...task,
-        assignedUserId: task.assignedUser?.id || '',
+        assignedUsers: task.assignedUsers || [],
         clientId: task.client?.id || '',
       });
+      // Initialiser les lignes d'assignation avec les utilisateurs existants
+      if (task.assignedUsers && task.assignedUsers.length > 0) {
+        setAssignmentRows(task.assignedUsers.map(user => ({ 
+          id: Date.now() + user.id, 
+          userId: user.id 
+        })));
+      }
     }
   }, [task]);
-  
-  useEffect(() => {
-    const fetchAttachments = async () => {
-      if (id === 'new' || !id) return;
-      
-      try {
-        const data = await attachmentService.getAttachmentsByTaskId(id);
-        setAttachments(data);
-      } catch (err) {
-        console.error(`Erreur lors du chargement des pièces jointes pour la tâche ${id}:`, err);
+
+  const fetchTask = async () => {
+    try {
+      const taskData = await taskService.getTaskById(activeTaskId);
+      setTask(taskData);
+      if (updateTaskInList) {
+        updateTaskInList(taskData);
       }
-    };
-    
-    fetchAttachments();
-  }, [id]);
-  
+    } catch (err) {
+      console.error(`Erreur lors du chargement de la tâche ${activeTaskId}:`, err);
+      setError('Impossible de charger les détails de la tâche. Veuillez réessayer.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchComments = async () => {
+    try {
+      const commentData = await commentService.getCommentsByTaskId(activeTaskId);
+      setComments(commentData);
+    } catch (err) {
+      console.error(`Erreur lors du chargement des commentaires pour la tâche ${activeTaskId}:`, err);
+    }
+  };
+
+  const fetchDevelopers = async () => {
+    try {
+      const data = await userService.getDeveloperUsers();
+      setDevelopers(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des développeurs:', error);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const data = await clientService.getAllClients();
+      setClients(data);
+    } catch (error) {
+      console.error('Erreur lors du chargement des clients:', error);
+    }
+  };
+
+  const fetchAttachments = async () => {
+    try {
+      const data = await attachmentService.getAttachmentsByTaskId(activeTaskId);
+      setAttachments(data);
+    } catch (err) {
+      console.error(`Erreur lors du chargement des pièces jointes pour la tâche ${activeTaskId}:`, err);
+    }
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
-    if (name === 'assignedUserId') {
+    if (name === 'assignedUsers') {
       setEditedTask({
         ...editedTask,
-        assignedUser: {
-          id: value || null
-        }
+        assignedUsers: [...editedTask.assignedUsers, { id: value }]
       });
     } else if (name === 'clientId') {
       setEditedTask({
         ...editedTask,
-        client: {
-          id: value || null
-        }
+        client: { id: value || null }
       });
     } else {
       setEditedTask({
@@ -816,47 +876,69 @@ const TaskDetail = () => {
       });
     }
   };
-  
+
   const handleEditSubmit = async (e) => {
     e.preventDefault();
-    
-    if (submittingTask) return;
-    
-    setSubmittingTask(true);
-    
     try {
-      const updatedTask = await taskService.updateTask(id, editedTask);
+      const updatedTask = await taskService.updateTask(activeTaskId, editedTask);
       setTask(updatedTask);
+      if (updateTaskInList) {
+        updateTaskInList(updatedTask);
+      }
       setShowEditForm(false);
-      alert('Tâche mise à jour avec succès!');
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la tâche:', error);
       alert('Impossible de mettre à jour la tâche. Veuillez réessayer.');
-    } finally {
-      setSubmittingTask(false);
     }
   };
-  
+
+  const handleBackClick = () => {
+    if (isModal && onClose) {
+      onClose();
+    } else {
+      navigate('/tasks');
+    }
+  };
+
+  const handleDeleteClick = async () => {
+    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')) {
+      try {
+        await taskService.deleteTask(activeTaskId);
+        if (isModal && onClose) {
+          onClose();
+        } else {
+          navigate('/tasks');
+        }
+      } catch (err) {
+        console.error(`Erreur lors de la suppression de la tâche ${activeTaskId}:`, err);
+        setError('Impossible de supprimer la tâche. Veuillez réessayer.');
+      }
+    }
+  };
+
+  const handleEditClick = () => {
+    setShowEditForm(true);
+  };
+
   const handleCloseForm = () => {
     setShowEditForm(false);
-    // Reset form if needed
     if (task) {
       setEditedTask({
         ...task,
-        assignedUserId: task.assignedUser?.id || '',
+        assignedUsers: task.assignedUsers || [],
         clientId: task.client?.id || '',
       });
     }
   };
-  
+
   const handleCommentInput = (e) => {
     const value = e.target.value;
     setNewComment(value);
-
+    
     // Générer l'aperçu formaté
     let formattedText = value;
     
-    // Formater les mentions d'utilisateurs (seulement celles qui existent dans le texte)
+    // Formater les mentions d'utilisateurs
     developers.forEach(dev => {
       const devUsername = `@${dev.username}`;
       if (formattedText.includes(devUsername)) {
@@ -865,7 +947,7 @@ const TaskDetail = () => {
       }
     });
     
-    // Formater les mentions de clients (seulement celles qui existent dans le texte)
+    // Formater les mentions de clients
     clients.forEach(client => {
       const clientName = `@${client.nom}`;
       if (formattedText.includes(clientName)) {
@@ -875,7 +957,7 @@ const TaskDetail = () => {
     });
     
     setFormattedComment(formattedText);
-
+    
     // Détecter la position du @ et calculer où mettre le dropdown
     const lastAtSymbol = value.lastIndexOf('@');
     
@@ -884,112 +966,58 @@ const TaskDetail = () => {
       const spaceAfterAt = textAfterAt.indexOf(' ');
       
       if (spaceAfterAt === -1) {
-        setMentionSearch(textAfterAt);
-        setShowMentionDropdown(true);
+        const searchText = textAfterAt.toLowerCase();
+        setMentionDropdownVisible(true);
         
-        // Type de mention
-        setMentionType(textAfterAt.toLowerCase().startsWith('c') ? 'client' : 'user');
+        // Filtrer les résultats selon que l'on cherche un client ou un utilisateur
+        if (searchText.startsWith('c')) {
+          // Recherche de clients
+          const filteredClients = clients.filter(client => 
+            client.nom.toLowerCase().includes(searchText.slice(1))
+          );
+          setMentionSearchResults(filteredClients.map(client => ({
+            id: client.id,
+            type: 'client',
+            name: client.nom
+          })));
+        } else {
+          // Recherche d'utilisateurs
+          const filteredUsers = developers.filter(dev => 
+            dev.username.toLowerCase().includes(searchText) ||
+            `${dev.prenom} ${dev.nom}`.toLowerCase().includes(searchText)
+          );
+          setMentionSearchResults(filteredUsers.map(user => ({
+            id: user.id,
+            type: 'user',
+            name: user.username,
+            displayName: `${user.prenom} ${user.nom}`
+          })));
+        }
         
-        // Obtenir la position exacte du @
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-        
-        // Obtenir la position du curseur
-        const cursorPos = lastAtSymbol;
-        
-        // Créer un div temporaire avec le même style que le textarea
-        const div = document.createElement('div');
-        const style = window.getComputedStyle(textarea);
-        
-        // Copier les styles pertinents
-        div.style.font = style.font;
-        div.style.width = textarea.offsetWidth + 'px';
-        div.style.padding = style.padding;
-        div.style.whiteSpace = 'pre-wrap';
-        div.style.position = 'absolute';
-        div.style.visibility = 'hidden';
-        div.style.top = '0';
-        div.style.left = '0';
-        
-        // Ajouter le texte jusqu'au @
-        const textBeforeAt = value.substring(0, cursorPos);
-        div.textContent = textBeforeAt;
-        
-        // Ajouter un span pour le @
-        const atSpan = document.createElement('span');
-        atSpan.id = 'at-marker';
-        atSpan.textContent = '@';
-        div.appendChild(atSpan);
-        
-        // Ajouter à la page pour mesurer
-        document.body.appendChild(div);
-        
-        // Mesurer où se trouve le @
-        const atMarker = div.querySelector('#at-marker');
-        const atRect = atMarker.getBoundingClientRect();
-        
-        // Nettoyer
-        document.body.removeChild(div);
-        
-        // Position du dropdown à côté du @
-        const textareaRect = textarea.getBoundingClientRect();
-        
-        setMentionPosition({
-          top: atRect.top - textareaRect.top + textareaRect.top + window.scrollY,
-          left: atRect.left - textareaRect.left + textareaRect.left + window.scrollX
-        });
+        // Calculer la position du curseur
+        if (commentInputRef.current) {
+          const cursorPosition = commentInputRef.current.selectionStart;
+          setCursorPosition(cursorPosition);
+        }
       } else {
-        setShowMentionDropdown(false);
+        setMentionDropdownVisible(false);
       }
     } else {
-      setShowMentionDropdown(false);
+      setMentionDropdownVisible(false);
     }
   };
 
-  const getTextWidth = (text, element) => {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    const style = window.getComputedStyle(element);
-    context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-    return context.measureText(text).width;
-  };
-
   const handleMentionSelect = (item) => {
-    console.log("Mention sélectionnée:", item);
+    const mentionText = item.type === 'user' ? `@${item.name}` : `@${item.name}`;
+    const beforeMention = newComment.substring(0, cursorPosition - 1);
+    const afterMention = newComment.substring(cursorPosition);
+    const updatedComment = `${beforeMention}${mentionText} ${afterMention}`;
     
-    // Insérer la mention dans le texte
-    const mentionText = mentionType === 'user' ? `@${item.username}` : `@${item.nom}`;
-    const lastAtSymbol = newComment.lastIndexOf('@');
-    const newText = newComment.slice(0, lastAtSymbol) + mentionText + ' ' + newComment.slice(lastAtSymbol + mentionSearch.length + 1);
-    
-    setNewComment(newText);
-    setShowMentionDropdown(false);
-    
-    // Mettre à jour l'aperçu formaté de manière optimisée pour éviter les doublons
-    let formattedText = newText;
-    
-    // Réinitialiser l'aperçu formaté à chaque fois pour éviter l'accumulation
-    // Appliquer seulement les mentions qui existent réellement dans le texte
-    developers.forEach(dev => {
-      const devUsername = `@${dev.username}`;
-      if (formattedText.includes(devUsername)) {
-        const regex = new RegExp(`@${dev.username}(\\s|$)`, 'g');
-        formattedText = formattedText.replace(regex, `<span class="mention-tag">@${dev.username}</span>$1`);
-      }
-    });
-    
-    clients.forEach(client => {
-      const clientName = `@${client.nom}`;
-      if (formattedText.includes(clientName)) {
-        const regex = new RegExp(`@${client.nom}(\\s|$)`, 'g');
-        formattedText = formattedText.replace(regex, `<span class="mention-tag-client">@${client.nom}</span>$1`);
-      }
-    });
-    
-    setFormattedComment(formattedText);
+    setNewComment(updatedComment);
+    setMentionDropdownVisible(false);
     
     // Mettre à jour les mentions sélectionnées
-    if (mentionType === 'user') {
+    if (item.type === 'user') {
       setSelectedMentions(prev => ({
         ...prev,
         users: new Set([...prev.users, item.id])
@@ -1001,13 +1029,11 @@ const TaskDetail = () => {
       }));
     }
     
-    // Donner le focus au textarea
-    if (textareaRef.current) {
-      textareaRef.current.focus();
-      
-      // Placer le curseur à la fin du texte
-      const len = newText.length;
-      textareaRef.current.setSelectionRange(len, len);
+    // Focus sur le textarea et placer le curseur après la mention
+    if (commentInputRef.current) {
+      commentInputRef.current.focus();
+      const newPosition = beforeMention.length + mentionText.length + 1;
+      commentInputRef.current.setSelectionRange(newPosition, newPosition);
     }
   };
 
@@ -1020,29 +1046,16 @@ const TaskDetail = () => {
     
     setSubmittingComment(true);
     
-    const userIds = Array.from(selectedMentions.users);
-    const clientIds = Array.from(selectedMentions.clients);
-    
-    console.log("DONNÉES AVANT ENVOI:", JSON.stringify({
-      contenu: newComment.trim(),
-      taskId: parseInt(id),
-      authorId: currentUser.id,
-      mentionedUserIds: userIds,
-      mentionedClientIds: clientIds
-    }, null, 2));
-    
     try {
       const commentData = {
         contenu: newComment.trim(),
-        taskId: parseInt(id),
+        taskId: activeTaskId,
         authorId: currentUser.id,
-        mentionedUserIds: userIds,
-        mentionedClientIds: clientIds
+        mentionedUserIds: Array.from(selectedMentions.users),
+        mentionedClientIds: Array.from(selectedMentions.clients)
       };
       
       const savedComment = await commentService.createComment(commentData);
-      console.log("DONNÉES APRÈS RÉPONSE:", JSON.stringify(savedComment, null, 2));
-      
       setComments([...comments, savedComment]);
       setNewComment('');
       setFormattedComment('');
@@ -1054,7 +1067,7 @@ const TaskDetail = () => {
       setSubmittingComment(false);
     }
   };
-  
+
   const handleDeleteComment = async (commentId) => {
     if (!commentId || !window.confirm('Êtes-vous sûr de vouloir supprimer ce commentaire ?')) {
       return;
@@ -1068,31 +1081,89 @@ const TaskDetail = () => {
       alert('Impossible de supprimer le commentaire. Veuillez réessayer.');
     }
   };
-  
-  const handleEditClick = () => {
-    setShowEditForm(true);
+
+  const renderMentionDropdown = () => {
+    if (!mentionDropdownVisible || mentionSearchResults.length === 0) return null;
+    
+    return (
+      <MentionDropdown>
+        {mentionSearchResults.map(item => (
+          <MentionItem
+            key={`${item.type}-${item.id}`}
+            onClick={() => handleMentionSelect(item)}
+          >
+            <UserAvatar>
+              {item.type === 'user' 
+                ? getInitials({ prenom: item.displayName.split(' ')[0], nom: item.displayName.split(' ')[1] || '' })
+                : item.name.charAt(0)
+              }
+            </UserAvatar>
+            <span>{item.type === 'user' ? item.displayName : item.name}</span>
+          </MentionItem>
+        ))}
+      </MentionDropdown>
+    );
   };
-  
-  const handleDeleteClick = async () => {
-    if (window.confirm('Êtes-vous sûr de vouloir supprimer cette tâche ?')) {
-      try {
-        await taskService.deleteTask(id);
-        navigate('/tasks');
-      } catch (err) {
-        console.error(`Erreur lors de la suppression de la tâche ${id}:`, err);
-        setError('Impossible de supprimer la tâche. Veuillez réessayer.');
-      }
+
+  const renderCommentContent = (content, mentionedUsers, mentionedClients) => {
+    if ((!mentionedUsers || mentionedUsers.length === 0) && 
+        (!mentionedClients || mentionedClients.length === 0)) {
+      return content;
     }
+    
+    let segments = [content];
+    
+    // Traitement des mentions utilisateurs
+    if (mentionedUsers && mentionedUsers.length > 0) {
+      mentionedUsers.forEach(username => {
+        const atUsername = `@${username}`;
+        if (content.includes(atUsername)) {
+          segments = segments.flatMap(segment => {
+            if (typeof segment === 'string') {
+              const parts = segment.split(atUsername);
+              return parts.reduce((acc, part, i) => {
+                if (i === 0) return [part];
+                return [...acc, 
+                  <MentionTag key={`user-${username}-${i}`}>{atUsername}</MentionTag>,
+                  part
+                ];
+              }, []);
+            }
+            return [segment];
+          });
+        }
+      });
+    }
+    
+    // Traitement des mentions clients
+    if (mentionedClients && mentionedClients.length > 0) {
+      mentionedClients.forEach(clientName => {
+        const atClientName = `@${clientName}`;
+        if (content.includes(atClientName)) {
+          segments = segments.flatMap(segment => {
+            if (typeof segment === 'string') {
+              const parts = segment.split(atClientName);
+              return parts.reduce((acc, part, i) => {
+                if (i === 0) return [part];
+                return [...acc, 
+                  <MentionTag key={`client-${clientName}-${i}`} isClient>{atClientName}</MentionTag>,
+                  part
+                ];
+              }, []);
+            }
+            return [segment];
+          });
+        }
+      });
+    }
+    
+    return <>{segments}</>;
   };
-  
-  const handleBackClick = () => {
-    navigate('/tasks');
-  };
-  
+
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
   };
-  
+
   const handleFileUpload = async () => {
     if (!selectedFile || !currentUser) {
       if (!selectedFile) {
@@ -1103,15 +1174,11 @@ const TaskDetail = () => {
       return;
     }
     
-    setUploadingFile(true);
+    setUploading(true);
     
     try {
-      const data = await attachmentService.uploadAttachment(selectedFile, id);
-      
-      // Ajouter la nouvelle pièce jointe à la liste
+      const data = await attachmentService.uploadAttachment(selectedFile, activeTaskId);
       setAttachments([...attachments, data]);
-      
-      // Réinitialiser le fichier sélectionné
       setSelectedFile(null);
       
       // Réinitialiser l'élément input file
@@ -1122,10 +1189,10 @@ const TaskDetail = () => {
       console.error('Erreur lors du téléchargement du fichier:', err);
       alert('Impossible de télécharger le fichier. Veuillez réessayer.');
     } finally {
-      setUploadingFile(false);
+      setUploading(false);
     }
   };
-  
+
   const handleDeleteAttachment = async (attachmentId) => {
     if (!currentUser) {
       alert('Vous devez être connecté pour supprimer un fichier.');
@@ -1138,148 +1205,71 @@ const TaskDetail = () => {
     
     try {
       await attachmentService.deleteAttachment(attachmentId);
-      
-      // Mettre à jour la liste des pièces jointes
       setAttachments(attachments.filter(attachment => attachment.id !== attachmentId));
-      
       alert('Pièce jointe supprimée avec succès!');
     } catch (err) {
       console.error('Erreur lors de la suppression de la pièce jointe:', err);
       alert('Impossible de supprimer la pièce jointe. Veuillez réessayer.');
     }
   };
-  
-  const renderMentionDropdown = () => {
-    if (!showMentionDropdown) return null;
-    const filteredItems = mentionType === 'user'
-      ? developers.filter(dev => dev.username.toLowerCase().includes(mentionSearch.toLowerCase()))
-      : clients.filter(client => client.nom.toLowerCase().includes(mentionSearch.toLowerCase()));
-    if (filteredItems.length === 0) return null;
-    // Fixer la position du dropdown exactement près du @
-    // en ajustant juste assez pour la visibilité
-    return (
-      <div style={{
-        position: 'fixed', // Position fixe pour éviter les problèmes de défilement
-        top: mentionPosition.top + 24, // Ajuster légèrement sous le @
-        left: mentionPosition.left,
-        zIndex: 10000
-      }}>
-        <MentionDropdown>
-          {filteredItems.map(item => (
-            <MentionItem
-              key={item.id}
-              onClick={() => handleMentionSelect(item)}
-            >
-              <UserAvatar>
-                {getInitials({
-                  prenom: mentionType === 'user' ? item.username.split(' ')[0] : item.nom.split(' ')[0],
-                  nom: mentionType === 'user' ? item.username.split(' ')[1] || '' : item.nom.split(' ')[1] || ''
-                })}
-              </UserAvatar>
-              {mentionType === 'user' ? item.username : item.nom}
-            </MentionItem>
-          ))}
-        </MentionDropdown>
-      </div>
-    );
+
+  const handleAddAssignment = () => {
+    setAssignmentRows([...assignmentRows, { id: Date.now() }]);
   };
 
-  const renderCommentContent = (content, mentionedUsers, mentionedClients) => {
-    console.log("Mentions utilisateurs:", mentionedUsers);
-    console.log("Mentions clients:", mentionedClients);
-    
-    // Si aucune mention, simplement retourner le contenu
-    if ((!mentionedUsers || mentionedUsers.length === 0) && 
-        (!mentionedClients || mentionedClients.length === 0)) {
-      return content;
+  const handleRemoveAssignment = (rowId) => {
+    if (assignmentRows.length > 1) {
+      setAssignmentRows(assignmentRows.filter(row => row.id !== rowId));
+      setEditedTask(prev => ({
+        ...prev,
+        assignedUsers: prev.assignedUsers.filter((_, index) => 
+          index !== assignmentRows.findIndex(row => row.id === rowId)
+        )
+      }));
     }
-    
-    // Convertir le texte en fragments React avec des styles directs
-    let segments = [content];
-    
-    // Traitement des mentions utilisateurs
-    if (mentionedUsers && mentionedUsers.length > 0) {
-      mentionedUsers.forEach(username => {
-        const atUsername = `@${username}`;
-        // Vérifier si cette mention existe dans le texte
-        if (content.includes(atUsername)) {
-          const newSegments = [];
-          
-          segments.forEach(segment => {
-            if (typeof segment === 'string') {
-              const parts = segment.split(atUsername);
-              for (let i = 0; i < parts.length; i++) {
-                if (i > 0) {
-                  // Ajouter la mention stylisée
-                  newSegments.push(
-                    <span key={`user-${username}-${i}`} style={{ 
-                      background: 'rgba(255, 122, 80, 0.2)',
-                      color: '#ff7a50',
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '4px',
-                      margin: '0 0.2rem',
-                      fontSize: '0.9em',
-                      display: 'inline-block'
-                    }}>{atUsername}</span>
-                  );
-                }
-                if (parts[i].length > 0) {
-                  newSegments.push(parts[i]);
-                }
-              }
-            } else {
-              newSegments.push(segment);
-            }
-          });
-          
-          segments = newSegments;
-        }
-      });
-    }
-    
-    // Traitement des mentions clients
-    if (mentionedClients && mentionedClients.length > 0) {
-      mentionedClients.forEach(clientName => {
-        const atClientName = `@${clientName}`;
-        // Vérifier si cette mention existe dans le texte
-        if (content.includes(atClientName)) {
-          const newSegments = [];
-          
-          segments.forEach(segment => {
-            if (typeof segment === 'string') {
-              const parts = segment.split(atClientName);
-              for (let i = 0; i < parts.length; i++) {
-                if (i > 0) {
-                  // Ajouter la mention stylisée
-                  newSegments.push(
-                    <span key={`client-${clientName}-${i}`} style={{ 
-                      background: 'rgba(80, 160, 255, 0.15)',
-                      color: '#50a0ff',
-                      padding: '0.2rem 0.5rem',
-                      borderRadius: '4px',
-                      margin: '0 0.2rem',
-                      fontSize: '0.9em',
-                      display: 'inline-block'
-                    }}>{atClientName}</span>
-                  );
-                }
-                if (parts[i].length > 0) {
-                  newSegments.push(parts[i]);
-                }
-              }
-            } else {
-              newSegments.push(segment);
-            }
-          });
-          
-          segments = newSegments;
-        }
-      });
-    }
-    
-    return <>{segments}</>;
   };
-  
+
+  const handleAssignmentChange = (rowId, userId) => {
+    const selectedUser = developers.find(dev => dev.id === parseInt(userId));
+    if (selectedUser) {
+      const updatedUsers = [...(editedTask.assignedUsers || [])];
+      const rowIndex = assignmentRows.findIndex(row => row.id === rowId);
+      
+      if (rowIndex !== -1) {
+        updatedUsers[rowIndex] = { id: selectedUser.id };
+      } else {
+        updatedUsers.push({ id: selectedUser.id });
+      }
+      
+      setEditedTask({
+        ...editedTask,
+        assignedUsers: updatedUsers.filter(user => user !== null)
+      });
+    }
+  };
+
+  const handleRemoveUserAssignment = async (userId) => {
+    if (!window.confirm('Êtes-vous sûr de vouloir retirer cet utilisateur de la tâche ?')) {
+      return;
+    }
+
+    try {
+      const updatedTask = {
+        ...task,
+        assignedUsers: task.assignedUsers.filter(user => user.id !== userId)
+      };
+      
+      const result = await taskService.updateTask(activeTaskId, updatedTask);
+      setTask(result);
+      if (updateTaskInList) {
+        updateTaskInList(result);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la suppression de l\'assignation:', err);
+      alert('Impossible de retirer l\'utilisateur de la tâche. Veuillez réessayer.');
+    }
+  };
+
   if (loading) {
     return (
       <LoadingContainer>
@@ -1287,7 +1277,7 @@ const TaskDetail = () => {
       </LoadingContainer>
     );
   }
-  
+
   if (error) {
     return (
       <ErrorContainer>
@@ -1297,15 +1287,14 @@ const TaskDetail = () => {
           variant="primary" 
           onClick={handleBackClick} 
           icon={<BackIcon />}
-          style={{ marginTop: '1rem' }}
         >
-          Retour à la liste
+          {isModal ? 'Fermer' : 'Retour à la liste'}
         </Button>
       </ErrorContainer>
     );
   }
-  
-  if (!task && id !== 'new') {
+
+  if (!task) {
     return (
       <ErrorContainer>
         <h2>Tâche non trouvée</h2>
@@ -1314,52 +1303,18 @@ const TaskDetail = () => {
           variant="primary" 
           onClick={handleBackClick} 
           icon={<BackIcon />}
-          style={{ marginTop: '1rem' }}
         >
-          Retour à la liste
+          {isModal ? 'Fermer' : 'Retour à la liste'}
         </Button>
       </ErrorContainer>
     );
   }
-  
-  // Formulaire de création de tâche (pour id === 'new')
-  if (id === 'new') {
-    return (
-      <TaskDetailContainer
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.3 }}
-      >
-        <HeaderContainer>
-          <TitleArea>
-            <TaskTitle>Nouvelle tâche</TaskTitle>
-          </TitleArea>
-          
-          <ButtonGroup>
-            <Button 
-              variant="text" 
-              onClick={handleBackClick} 
-              icon={<BackIcon />}
-            >
-              Retour
-            </Button>
-          </ButtonGroup>
-        </HeaderContainer>
-        
-        {/* Ajouter ici le formulaire de création de tâche */}
-        <Section>
-          <SectionTitle>Formulaire de création</SectionTitle>
-          <p>Le formulaire de création sera implémenté ultérieurement.</p>
-        </Section>
-      </TaskDetailContainer>
-    );
-  }
-  
+
   return (
     <TaskDetailContainer
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      transition={{ duration: 0.3 }}
+      exit={{ opacity: 0 }}
     >
       <HeaderContainer>
         <TitleArea>
@@ -1371,11 +1326,11 @@ const TaskDetail = () => {
         
         <ButtonGroup>
           <Button 
-            variant="text" 
+            variant="secondary" 
             onClick={handleBackClick} 
             icon={<BackIcon />}
           >
-            Retour
+            {isModal ? 'Fermer' : 'Retour'}
           </Button>
           <Button 
             variant="primary" 
@@ -1393,14 +1348,14 @@ const TaskDetail = () => {
           </Button>
         </ButtonGroup>
       </HeaderContainer>
-      
+
       <Section>
         <SectionTitle>Description</SectionTitle>
         <Description>
           {task.description || 'Aucune description fournie.'}
         </Description>
       </Section>
-      
+
       <Section>
         <SectionTitle>Détails</SectionTitle>
         <DetailsList>
@@ -1427,20 +1382,40 @@ const TaskDetail = () => {
           )}
         </DetailsList>
       </Section>
-      
-      {task.assignedUser && (
+
+      {task.assignedUsers && task.assignedUsers.length > 0 && (
         <Section>
-          <SectionTitle>Assigné à</SectionTitle>
-          <UserCard>
-            <UserAvatar>{getInitials(task.assignedUser)}</UserAvatar>
-            <UserInfo>
-              <UserName>{task.assignedUser.prenom} {task.assignedUser.nom}</UserName>
-              <UserRole>{translateRoleName(task.assignedUser.role)}</UserRole>
-            </UserInfo>
-          </UserCard>
+          <AssignedUsersHeader>
+            <SectionTitle>Assigné à</SectionTitle>
+            <AssignedCount>
+              {task.assignedUsers.length} {task.assignedUsers.length > 1 ? 'utilisateurs' : 'utilisateur'}
+            </AssignedCount>
+          </AssignedUsersHeader>
+          
+          {task.assignedUsers.map(user => (
+            <UserCard key={user.id}>
+              <UserInfo>
+                <UserAvatar>{getInitials(user)}</UserAvatar>
+                <div>
+                  <UserName>{user.prenom} {user.nom}</UserName>
+                  <UserRole>{translateRoleName(user.role)}</UserRole>
+                </div>
+              </UserInfo>
+              {currentUser && (currentUser.role === 'CHEF_PROJET' || currentUser.id === task.createdById) && (
+                <RemoveButton
+                  onClick={() => handleRemoveUserAssignment(user.id)}
+                  title="Retirer cet utilisateur"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
+                  </svg>
+                </RemoveButton>
+              )}
+            </UserCard>
+          ))}
         </Section>
       )}
-      
+
       {task.client && (
         <Section>
           <SectionTitle>Client</SectionTitle>
@@ -1466,7 +1441,7 @@ const TaskDetail = () => {
           </DetailsList>
         </Section>
       )}
-      
+
       <AttachmentSection>
         <SectionTitle>
           <DocumentIcon />
@@ -1494,10 +1469,10 @@ const TaskDetail = () => {
             <Button
               variant="primary"
               onClick={handleFileUpload}
-              disabled={!selectedFile || uploadingFile}
+              disabled={!selectedFile || uploading}
               style={{ alignSelf: 'flex-start' }}
             >
-              {uploadingFile ? 'Téléchargement...' : 'Télécharger'}
+              {uploading ? 'Téléchargement...' : 'Télécharger'}
             </Button>
           </FileUploadContainer>
         ) : (
@@ -1548,7 +1523,7 @@ const TaskDetail = () => {
           )}
         </AttachmentList>
       </AttachmentSection>
-      
+
       <CommentSection>
         <SectionTitle>Commentaires</SectionTitle>
         
@@ -1557,7 +1532,7 @@ const TaskDetail = () => {
             <div style={{ position: 'relative' }}>
               <CommentInputWrapper>
                 <CommentInput
-                  ref={textareaRef}
+                  ref={commentInputRef}
                   value={newComment}
                   onChange={handleCommentInput}
                   placeholder="Ajouter un commentaire... (utilisez @ pour mentionner)"
@@ -1586,7 +1561,10 @@ const TaskDetail = () => {
               <CommentCard key={comment.id}>
                 <CommentHeader>
                   <CommentAuthor>
-                    <UserAvatar>{getInitials({ prenom: comment.authorUsername.split(' ')[0], nom: comment.authorUsername.split(' ')[1] || '' })}</UserAvatar>
+                    <UserAvatar>{getInitials({ 
+                      prenom: comment.authorUsername.split(' ')[0], 
+                      nom: comment.authorUsername.split(' ')[1] || '' 
+                    })}</UserAvatar>
                     <strong>{comment.authorUsername}</strong>
                   </CommentAuthor>
                   
@@ -1616,20 +1594,14 @@ const TaskDetail = () => {
           )}
         </CommentList>
       </CommentSection>
-      
+
       {showEditForm && editedTask && (
-        <FormOverlay 
-          onClick={handleCloseForm}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <FormCard 
+        <FormOverlay onClick={handleCloseForm}>
+          <FormCard
+            onClick={(e) => e.stopPropagation()}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
-            onClick={(e) => e.stopPropagation()}
           >
             <FormContainer onSubmit={handleEditSubmit}>
               <FormTitle>Modifier la tâche</FormTitle>
@@ -1646,20 +1618,8 @@ const TaskDetail = () => {
                     required 
                   />
                 </InputGroup>
-                
-                <InputGroup>
-                  <Label htmlFor="dateCreation">Date de création</Label>
-                  <Input 
-                    type="date" 
-                    id="dateCreation" 
-                    name="dateCreation" 
-                    value={editedTask.dateCreation ? editedTask.dateCreation.split('T')[0] : ''} 
-                    onChange={handleInputChange}
-                    readOnly
-                  />
-                </InputGroup>
               </FormRow>
-              
+
               <InputGroup>
                 <Label htmlFor="description">Description</Label>
                 <TextArea 
@@ -1669,7 +1629,7 @@ const TaskDetail = () => {
                   onChange={handleInputChange} 
                 />
               </InputGroup>
-              
+
               <FormRow>
                 <InputGroup>
                   <Label htmlFor="priorite">Priorité</Label>
@@ -1684,7 +1644,7 @@ const TaskDetail = () => {
                     <option value="HAUTE">Haute</option>
                   </Select>
                 </InputGroup>
-                
+
                 <InputGroup>
                   <Label htmlFor="statut">Statut</Label>
                   <Select 
@@ -1699,7 +1659,7 @@ const TaskDetail = () => {
                   </Select>
                 </InputGroup>
               </FormRow>
-              
+
               <FormRow>
                 <InputGroup>
                   <Label htmlFor="dateEcheance">Date d'échéance</Label>
@@ -1711,7 +1671,7 @@ const TaskDetail = () => {
                     onChange={handleInputChange} 
                   />
                 </InputGroup>
-                
+
                 <InputGroup>
                   <Label htmlFor="cout">Coût (€)</Label>
                   <Input 
@@ -1723,25 +1683,45 @@ const TaskDetail = () => {
                   />
                 </InputGroup>
               </FormRow>
-              
+
               <FormRow>
-                <InputGroup>
-                  <Label htmlFor="assignedUserId">Assigner à un développeur</Label>
-                  <Select 
-                    id="assignedUserId" 
-                    name="assignedUserId" 
-                    value={editedTask.assignedUser?.id || ''} 
-                    onChange={handleInputChange}
+                <InputGroup style={{ flex: 2 }}>
+                  <Label>Assigner à des développeurs</Label>
+                  {assignmentRows.map((row) => (
+                    <AssignmentRow key={row.id}>
+                      <Select
+                        value={editedTask.assignedUsers[assignmentRows.findIndex(r => r.id === row.id)]?.id || ''}
+                        onChange={(e) => handleAssignmentChange(row.id, e.target.value)}
+                        style={{ flex: 1 }}
+                      >
+                        <option value="">Sélectionner un développeur</option>
+                        {developers.map((dev) => (
+                          <option key={dev.id} value={dev.id}>
+                            {dev.prenom} {dev.nom}
+                          </option>
+                        ))}
+                      </Select>
+                      {assignmentRows.length > 1 && (
+                        <RemoveButton
+                          type="button"
+                          onClick={() => handleRemoveAssignment(row.id)}
+                          title="Retirer ce développeur"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                          </svg>
+                        </RemoveButton>
+                      )}
+                    </AssignmentRow>
+                  ))}
+                  <AddButton
+                    type="button"
+                    onClick={handleAddAssignment}
                   >
-                    <option value="">Non assigné</option>
-                    {developers.map((dev) => (
-                      <option key={dev.id} value={dev.id}>
-                        {dev.prenom} {dev.nom}
-                      </option>
-                    ))}
-                  </Select>
+                    + Ajouter un développeur
+                  </AddButton>
                 </InputGroup>
-                
+
                 <InputGroup>
                   <Label htmlFor="clientId">Client</Label>
                   <Select 
@@ -1759,14 +1739,13 @@ const TaskDetail = () => {
                   </Select>
                 </InputGroup>
               </FormRow>
-              
+
               <ButtonGroup>
                 <Button 
                   type="submit" 
-                  variant="gradient"
-                  disabled={submittingTask}
+                  variant="primary"
                 >
-                  {submittingTask ? 'Enregistrement...' : 'Enregistrer les modifications'}
+                  Enregistrer les modifications
                 </Button>
                 <Button 
                   type="button" 

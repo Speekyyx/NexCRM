@@ -6,6 +6,7 @@ import api from '../services/api';
 import TaskCard from '../components/TaskCard';
 import Button from '../components/Button';
 import { useNavigate } from 'react-router-dom';
+import TaskDetail from './TaskDetail';
 
 const TaskListContainer = styled.div`
   display: flex;
@@ -253,6 +254,61 @@ const ButtonGroup = styled.div`
   margin-top: 1rem;
 `;
 
+const AssignmentRow = styled.div`
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+`;
+
+const RemoveButton = styled(Button)`
+  padding: 0.5rem;
+  min-width: auto;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  
+  svg {
+    width: 16px;
+    height: 16px;
+  }
+`;
+
+const AddButton = styled(Button)`
+  margin-top: 0.5rem;
+  width: fit-content;
+  
+  &:hover {
+    transform: translateY(-1px);
+  }
+`;
+
+const TaskDetailModal = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 80%;
+  max-width: 1200px;
+  background: ${({ theme }) => theme.colors.background};
+  box-shadow: -5px 0 25px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  overflow-y: auto;
+  padding: 2rem;
+`;
+
+const ModalOverlay = styled(motion.div)`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  backdrop-filter: blur(2px);
+`;
+
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -268,9 +324,13 @@ const TaskList = () => {
     statut: 'A_FAIRE',
     dateEcheance: '',
     dateCreation: new Date().toISOString().split('T')[0],
-    assignedUser: { id: '' },
+    assignedUsers: [],
     client: { id: '' }
   });
+  
+  const [assignmentRows, setAssignmentRows] = useState([{ id: Date.now() }]);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
+  const [showTaskDetail, setShowTaskDetail] = useState(false);
   
   useEffect(() => {
     fetchTasks();
@@ -343,7 +403,7 @@ const TaskList = () => {
       statut: 'A_FAIRE',
       dateEcheance: '',
       dateCreation: new Date().toISOString().split('T')[0],
-      assignedUser: { id: '' },
+      assignedUsers: [],
       client: { id: '' }
     });
   };
@@ -354,7 +414,7 @@ const TaskList = () => {
     if (name === 'assignedUserId') {
       setNewTask({
         ...newTask,
-        assignedUser: { id: value === '' ? null : value }
+        assignedUsers: [...newTask.assignedUsers, { id: value === '' ? null : value }].filter(user => user !== null)
       });
     } else if (name === 'clientId') {
       setNewTask({
@@ -365,6 +425,41 @@ const TaskList = () => {
       setNewTask({
         ...newTask,
         [name]: value
+      });
+    }
+  };
+  
+  const handleAddAssignment = () => {
+    setAssignmentRows([...assignmentRows, { id: Date.now() }]);
+  };
+  
+  const handleRemoveAssignment = (rowId) => {
+    if (assignmentRows.length > 1) {
+      setAssignmentRows(assignmentRows.filter(row => row.id !== rowId));
+      setNewTask({
+        ...newTask,
+        assignedUsers: newTask.assignedUsers.filter((_, index) => 
+          index !== assignmentRows.findIndex(row => row.id === rowId)
+        )
+      });
+    }
+  };
+  
+  const handleAssignmentChange = (rowId, userId) => {
+    const selectedUser = developers.find(dev => dev.id === parseInt(userId));
+    if (selectedUser) {
+      const updatedUsers = [...newTask.assignedUsers];
+      const rowIndex = assignmentRows.findIndex(row => row.id === rowId);
+      
+      if (rowIndex !== -1) {
+        updatedUsers[rowIndex] = { id: selectedUser.id };
+      } else {
+        updatedUsers.push({ id: selectedUser.id });
+      }
+      
+      setNewTask({
+        ...newTask,
+        assignedUsers: updatedUsers.filter(user => user !== null)
       });
     }
   };
@@ -387,234 +482,297 @@ const TaskList = () => {
   
   const filteredTasks = getFilteredTasks();
   
+  const handleTaskClick = (taskId) => {
+    setSelectedTaskId(taskId);
+    setShowTaskDetail(true);
+  };
+
+  const handleCloseTaskDetail = () => {
+    setShowTaskDetail(false);
+    setSelectedTaskId(null);
+  };
+  
   return (
-    <TaskListContainer>
-      <Header>
-        <Title>
-          Gestionnaire de <span>Tâches</span>
-        </Title>
-        
-        <Button 
-          variant="gradient"
-          onClick={handleCreateTask}
-          icon={<AddIcon />}
-        >
-          Nouvelle tâche
-        </Button>
-      </Header>
-      
-      {showForm && (
-        <FormOverlay onClick={handleCloseForm}>
-          <FormCard 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <FormContainer onSubmit={handleSubmit}>
-              <FormTitle>Créer une nouvelle tâche</FormTitle>
-              
-              <FormRow>
-                <InputGroup>
-                  <Label htmlFor="titre">Titre</Label>
-                  <Input 
-                    type="text" 
-                    id="titre" 
-                    name="titre" 
-                    value={newTask.titre} 
-                    onChange={handleInputChange} 
-                    required 
-                  />
-                </InputGroup>
-                
-                <InputGroup>
-                  <Label htmlFor="dateCreation">Date de création</Label>
-                  <Input 
-                    type="date" 
-                    id="dateCreation" 
-                    name="dateCreation" 
-                    value={newTask.dateCreation} 
-                    onChange={handleInputChange}
-                    readOnly
-                  />
-                </InputGroup>
-              </FormRow>
-              
-              <InputGroup>
-                <Label htmlFor="description">Description</Label>
-                <TextArea 
-                  id="description" 
-                  name="description" 
-                  value={newTask.description} 
-                  onChange={handleInputChange} 
-                />
-              </InputGroup>
-              
-              <FormRow>
-                <InputGroup>
-                  <Label htmlFor="priorite">Priorité</Label>
-                  <Select 
-                    id="priorite" 
-                    name="priorite" 
-                    value={newTask.priorite} 
-                    onChange={handleInputChange}
-                  >
-                    <option value="BASSE">Basse</option>
-                    <option value="MOYENNE">Moyenne</option>
-                    <option value="HAUTE">Haute</option>
-                  </Select>
-                </InputGroup>
-                
-                <InputGroup>
-                  <Label htmlFor="dateEcheance">Date d'échéance</Label>
-                  <Input 
-                    type="date" 
-                    id="dateEcheance" 
-                    name="dateEcheance" 
-                    value={newTask.dateEcheance} 
-                    onChange={handleInputChange} 
-                  />
-                </InputGroup>
-              </FormRow>
-              
-              <FormRow>
-                <InputGroup>
-                  <Label htmlFor="assignedUserId">Assigner à un développeur</Label>
-                  <Select 
-                    id="assignedUserId" 
-                    name="assignedUserId" 
-                    value={newTask.assignedUser.id || ''} 
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Non assigné</option>
-                    {developers.map((dev) => (
-                      <option key={dev.id} value={dev.id}>
-                        {dev.prenom} {dev.nom}
-                      </option>
-                    ))}
-                  </Select>
-                </InputGroup>
-                
-                <InputGroup>
-                  <Label htmlFor="clientId">Client</Label>
-                  <Select 
-                    id="clientId" 
-                    name="clientId" 
-                    value={newTask.client.id || ''} 
-                    onChange={handleInputChange}
-                  >
-                    <option value="">Sélectionner un client</option>
-                    {clients.map((client) => (
-                      <option key={client.id} value={client.id}>
-                        {client.nom}
-                      </option>
-                    ))}
-                  </Select>
-                </InputGroup>
-              </FormRow>
-              
-              <ButtonGroup>
-                <Button 
-                  type="submit" 
-                  variant="gradient"
-                >
-                  Créer la tâche
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="secondary" 
-                  onClick={handleCloseForm}
-                >
-                  Annuler
-                </Button>
-              </ButtonGroup>
-            </FormContainer>
-          </FormCard>
-        </FormOverlay>
-      )}
-      
-      <Filters>
-        <FilterButton 
-          isActive={filter === 'ALL'} 
-          onClick={() => setFilter('ALL')}
-        >
-          Toutes les tâches
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'A_FAIRE'} 
-          onClick={() => setFilter('A_FAIRE')}
-        >
-          À faire
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'EN_COURS'} 
-          onClick={() => setFilter('EN_COURS')}
-        >
-          En cours
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'TERMINEE'} 
-          onClick={() => setFilter('TERMINEE')}
-        >
-          Terminées
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'HAUTE'} 
-          onClick={() => setFilter('HAUTE')}
-        >
-          Priorité haute
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'MOYENNE'} 
-          onClick={() => setFilter('MOYENNE')}
-        >
-          Priorité moyenne
-        </FilterButton>
-        <FilterButton 
-          isActive={filter === 'BASSE'} 
-          onClick={() => setFilter('BASSE')}
-        >
-          Priorité basse
-        </FilterButton>
-      </Filters>
-      
-      {loading ? (
-        <LoadingContainer>
-          {[0, 1, 2].map((i) => (
-            <LoadingDot 
-              key={i} 
-              custom={i} 
-              variants={loadingVariants}
-              animate="loading"
-            />
-          ))}
-        </LoadingContainer>
-      ) : filteredTasks.length > 0 ? (
-        <TaskGrid as={motion.div} variants={containerVariants} initial="hidden" animate="visible">
-          {filteredTasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
-          ))}
-        </TaskGrid>
-      ) : (
-        <EmptyState
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-        >
-          <EmptyStateTitle>Aucune tâche trouvée</EmptyStateTitle>
-          <p>Commencez par créer une nouvelle tâche</p>
+    <>
+      <TaskListContainer>
+        <Header>
+          <Title>
+            Gestionnaire de <span>Tâches</span>
+          </Title>
+          
           <Button 
-            variant="primary"
-            style={{ marginTop: '1.5rem' }}
+            variant="gradient"
             onClick={handleCreateTask}
             icon={<AddIcon />}
           >
-            Créer une tâche
+            Nouvelle tâche
           </Button>
-        </EmptyState>
+        </Header>
+        
+        {showForm && (
+          <FormOverlay onClick={handleCloseForm}>
+            <FormCard 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <FormContainer onSubmit={handleSubmit}>
+                <FormTitle>Créer une nouvelle tâche</FormTitle>
+                
+                <FormRow>
+                  <InputGroup>
+                    <Label htmlFor="titre">Titre</Label>
+                    <Input 
+                      type="text" 
+                      id="titre" 
+                      name="titre" 
+                      value={newTask.titre} 
+                      onChange={handleInputChange} 
+                      required 
+                    />
+                  </InputGroup>
+                  
+                  <InputGroup>
+                    <Label htmlFor="dateCreation">Date de création</Label>
+                    <Input 
+                      type="date" 
+                      id="dateCreation" 
+                      name="dateCreation" 
+                      value={newTask.dateCreation} 
+                      onChange={handleInputChange}
+                      readOnly
+                    />
+                  </InputGroup>
+                </FormRow>
+                
+                <InputGroup>
+                  <Label htmlFor="description">Description</Label>
+                  <TextArea 
+                    id="description" 
+                    name="description" 
+                    value={newTask.description} 
+                    onChange={handleInputChange} 
+                  />
+                </InputGroup>
+                
+                <FormRow>
+                  <InputGroup>
+                    <Label htmlFor="priorite">Priorité</Label>
+                    <Select 
+                      id="priorite" 
+                      name="priorite" 
+                      value={newTask.priorite} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="BASSE">Basse</option>
+                      <option value="MOYENNE">Moyenne</option>
+                      <option value="HAUTE">Haute</option>
+                    </Select>
+                  </InputGroup>
+                  
+                  <InputGroup>
+                    <Label htmlFor="dateEcheance">Date d'échéance</Label>
+                    <Input 
+                      type="date" 
+                      id="dateEcheance" 
+                      name="dateEcheance" 
+                      value={newTask.dateEcheance} 
+                      onChange={handleInputChange} 
+                    />
+                  </InputGroup>
+                </FormRow>
+                
+                <FormRow>
+                  <InputGroup style={{ flex: 2 }}>
+                    <Label>Assigner à des développeurs</Label>
+                    {assignmentRows.map((row) => (
+                      <AssignmentRow key={row.id}>
+                        <Select
+                          value={newTask.assignedUsers[assignmentRows.findIndex(r => r.id === row.id)]?.id || ''}
+                          onChange={(e) => handleAssignmentChange(row.id, e.target.value)}
+                          style={{ flex: 1 }}
+                        >
+                          <option value="">Sélectionner un développeur</option>
+                          {developers.map((dev) => (
+                            <option key={dev.id} value={dev.id}>
+                              {dev.prenom} {dev.nom}
+                            </option>
+                          ))}
+                        </Select>
+                        {assignmentRows.length > 1 && (
+                          <RemoveButton
+                            type="button"
+                            variant="danger"
+                            onClick={() => handleRemoveAssignment(row.id)}
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                          </RemoveButton>
+                        )}
+                      </AssignmentRow>
+                    ))}
+                    <AddButton
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddAssignment}
+                    >
+                      + Ajouter un développeur
+                    </AddButton>
+                  </InputGroup>
+
+                  <InputGroup>
+                    <Label htmlFor="clientId">Client</Label>
+                    <Select 
+                      id="clientId" 
+                      name="clientId" 
+                      value={newTask.client.id || ''} 
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Sélectionner un client</option>
+                      {clients.map((client) => (
+                        <option key={client.id} value={client.id}>
+                          {client.nom}
+                        </option>
+                      ))}
+                    </Select>
+                  </InputGroup>
+                </FormRow>
+                
+                <ButtonGroup>
+                  <Button 
+                    type="submit" 
+                    variant="gradient"
+                  >
+                    Créer la tâche
+                  </Button>
+                  <Button 
+                    type="button" 
+                    variant="secondary" 
+                    onClick={handleCloseForm}
+                  >
+                    Annuler
+                  </Button>
+                </ButtonGroup>
+              </FormContainer>
+            </FormCard>
+          </FormOverlay>
+        )}
+        
+        <Filters>
+          <FilterButton 
+            isActive={filter === 'ALL'} 
+            onClick={() => setFilter('ALL')}
+          >
+            Toutes les tâches
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'A_FAIRE'} 
+            onClick={() => setFilter('A_FAIRE')}
+          >
+            À faire
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'EN_COURS'} 
+            onClick={() => setFilter('EN_COURS')}
+          >
+            En cours
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'TERMINEE'} 
+            onClick={() => setFilter('TERMINEE')}
+          >
+            Terminées
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'HAUTE'} 
+            onClick={() => setFilter('HAUTE')}
+          >
+            Priorité haute
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'MOYENNE'} 
+            onClick={() => setFilter('MOYENNE')}
+          >
+            Priorité moyenne
+          </FilterButton>
+          <FilterButton 
+            isActive={filter === 'BASSE'} 
+            onClick={() => setFilter('BASSE')}
+          >
+            Priorité basse
+          </FilterButton>
+        </Filters>
+        
+        {loading ? (
+          <LoadingContainer>
+            {[0, 1, 2].map((i) => (
+              <LoadingDot 
+                key={i} 
+                custom={i} 
+                variants={loadingVariants}
+                animate="loading"
+              />
+            ))}
+          </LoadingContainer>
+        ) : filteredTasks.length > 0 ? (
+          <TaskGrid as={motion.div} variants={containerVariants} initial="hidden" animate="visible">
+            {filteredTasks.map((task) => (
+              <TaskCard 
+                key={task.id} 
+                task={task} 
+                onClick={() => handleTaskClick(task.id)}
+              />
+            ))}
+          </TaskGrid>
+        ) : (
+          <EmptyState
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.3 }}
+          >
+            <EmptyStateTitle>Aucune tâche trouvée</EmptyStateTitle>
+            <p>Commencez par créer une nouvelle tâche</p>
+            <Button 
+              variant="primary"
+              style={{ marginTop: '1.5rem' }}
+              onClick={handleCreateTask}
+              icon={<AddIcon />}
+            >
+              Créer une tâche
+            </Button>
+          </EmptyState>
+        )}
+      </TaskListContainer>
+
+      {showTaskDetail && (
+        <>
+          <ModalOverlay
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={handleCloseTaskDetail}
+          />
+          <TaskDetailModal
+            initial={{ x: '100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '100%' }}
+            transition={{ type: 'tween', duration: 0.3 }}
+          >
+            <TaskDetail 
+              taskId={selectedTaskId}
+              onClose={handleCloseTaskDetail}
+              updateTaskInList={(updatedTask) => {
+                setTasks(tasks.map(t => t.id === updatedTask.id ? updatedTask : t));
+              }}
+              isModal={true}
+            />
+          </TaskDetailModal>
+        </>
       )}
-    </TaskListContainer>
+    </>
   );
 };
 

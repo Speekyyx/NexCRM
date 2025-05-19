@@ -11,6 +11,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.HashSet;
 
 @Data
 @Builder
@@ -23,7 +24,7 @@ public class TaskDto {
     private LocalDate dateEcheance;
     private Task.Priority priorite;
     private Task.Status statut;
-    private UserDto assignedUser;
+    private Set<UserDto> assignedUsers;
     private ClientDto client;
     private BigDecimal cout;
     private Set<CategoryDto> categories;
@@ -37,7 +38,10 @@ public class TaskDto {
                 .dateEcheance(task.getDateEcheance())
                 .priorite(task.getPriorite())
                 .statut(task.getStatut())
-                .assignedUser(task.getAssignedUser() != null ? UserDto.fromEntity(task.getAssignedUser()) : null)
+                .assignedUsers(task.getAssignedUsers() != null ? 
+                        task.getAssignedUsers().stream()
+                                .map(UserDto::fromEntity)
+                                .collect(Collectors.toSet()) : new HashSet<>())
                 .client(task.getClient() != null ? ClientDto.fromEntity(task.getClient()) : null)
                 .cout(task.getCout())
                 .categories(task.getCategories() != null ? 

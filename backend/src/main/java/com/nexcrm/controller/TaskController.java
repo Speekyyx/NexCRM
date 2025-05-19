@@ -96,4 +96,14 @@ public class TaskController {
     public ResponseEntity<TaskDto> assignTaskToUser(@PathVariable Long taskId, @PathVariable Long userId) {
         return ResponseEntity.ok(taskService.assignUser(taskId, userId));
     }
+
+    @PatchMapping("/{taskId}/unassign/{userId}")
+    public ResponseEntity<TaskDto> unassignTaskFromUser(@PathVariable Long taskId, @PathVariable Long userId) {
+        return ResponseEntity.ok(taskService.unassignUser(taskId, userId));
+    }
+
+    @GetMapping("/assigned/{userId}")
+    public ResponseEntity<List<TaskDto>> getTasksAssignedToUser(@PathVariable Long userId) {
+        return ResponseEntity.ok(taskService.findByAssignedUserId(userId));
+    }
 } 

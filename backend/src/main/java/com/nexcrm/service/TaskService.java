@@ -21,4 +21,5 @@ public interface TaskService {
     List<TaskDto> findByDueDateAfter(LocalDate date);
     TaskDto updateStatus(Long id, Task.Status status);
     TaskDto assignUser(Long taskId, Long userId);
+    TaskDto unassignUser(Long taskId, Long userId);
 } 

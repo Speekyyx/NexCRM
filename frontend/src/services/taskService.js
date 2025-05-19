@@ -139,6 +139,18 @@ const assignTaskToUser = async (taskId, userId) => {
   }
 };
 
+const unassignUser = async (taskId, userId) => {
+  try {
+    const response = await api.patch(`/tasks/${taskId}/unassign/${userId}`);
+    // Invalider le cache après désassignation
+    taskCache.lastFetch = 0;
+    return response.data;
+  } catch (error) {
+    console.error(`Erreur lors du retrait de l'utilisateur ${userId} de la tâche ${taskId}:`, error);
+    throw error;
+  }
+};
+
 const getTasksByStatus = async (status) => {
   const cacheKey = `tasks_status_${status}`;
   const cachedData = getCachedData(cacheKey);
@@ -205,6 +217,7 @@ export const taskService = {
   deleteTask,
   updateTaskStatus,
   assignTaskToUser,
+  unassignUser,
   getTasksByStatus,
   getTasksByPriority,
   invalidateCache

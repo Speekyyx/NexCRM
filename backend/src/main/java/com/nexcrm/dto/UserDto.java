@@ -1,5 +1,6 @@
 package com.nexcrm.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.nexcrm.model.User;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -10,6 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserDto {
     private Long id;
     private String username;
@@ -19,6 +21,7 @@ public class UserDto {
     private User.Role role;
 
     public static UserDto fromEntity(User user) {
+        if (user == null) return null;
         return UserDto.builder()
                 .id(user.getId())
                 .username(user.getUsername())
