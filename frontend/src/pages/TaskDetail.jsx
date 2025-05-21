@@ -735,6 +735,43 @@ const AddButton = styled.button`
   }
 `;
 
+const Categories = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+`;
+
+const CategoryTag = styled.span`
+  font-size: 0.8rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  background: ${({ theme }) => theme.colors.primary}15;
+  color: ${({ theme }) => theme.colors.primary};
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  button {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    opacity: 0.6;
+    
+    &:hover {
+      opacity: 1;
+    }
+  }
+`;
+
+const CategorySelect = styled(Select)`
+  min-width: 200px;
+`;
+
 const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = false }) => {
   const { id: paramTaskId } = useParams();
   const navigate = useNavigate();
@@ -762,6 +799,8 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
   });
   const [formattedComment, setFormattedComment] = useState('');
   const commentInputRef = useRef(null);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
   
   const activeTaskId = propTaskId || paramTaskId;
 
@@ -785,6 +824,7 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
       fetchDevelopers();
       fetchClients();
       fetchAttachments();
+      fetchCategories();
     }
   }, [activeTaskId]);
 
@@ -853,6 +893,15 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
       setAttachments(data);
     } catch (err) {
       console.error(`Erreur lors du chargement des pièces jointes pour la tâche ${activeTaskId}:`, err);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get('/api/categories');
+      setCategories(response.data);
+    } catch (err) {
+      console.error('Erreur lors du chargement des catégories:', err);
     }
   };
 
@@ -1267,6 +1316,49 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
     } catch (err) {
       console.error('Erreur lors de la suppression de l\'assignation:', err);
       alert('Impossible de retirer l\'utilisateur de la tâche. Veuillez réessayer.');
+    }
+  };
+
+  const handleAddCategory = async () => {
+    if (!selectedCategory) return;
+    
+    try {
+      const updatedTask = {
+        ...task,
+        categories: [...(task.categories || []), 
+          categories.find(c => c.id === parseInt(selectedCategory))
+        ]
+      };
+      
+      const result = await taskService.updateTask(activeTaskId, updatedTask);
+      setTask(result);
+      setSelectedCategory('');
+      
+      if (updateTaskInList) {
+        updateTaskInList(result);
+      }
+    } catch (err) {
+      console.error('Erreur lors de l\'ajout de la catégorie:', err);
+      alert('Impossible d\'ajouter la catégorie. Veuillez réessayer.');
+    }
+  };
+  
+  const handleRemoveCategory = async (categoryId) => {
+    try {
+      const updatedTask = {
+        ...task,
+        categories: task.categories.filter(c => c.id !== categoryId)
+      };
+      
+      const result = await taskService.updateTask(activeTaskId, updatedTask);
+      setTask(result);
+      
+      if (updateTaskInList) {
+        updateTaskInList(result);
+      }
+    } catch (err) {
+      console.error('Erreur lors de la suppression de la catégorie:', err);
+      alert('Impossible de supprimer la catégorie. Veuillez réessayer.');
     }
   };
 
@@ -1759,6 +1851,52 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
           </FormCard>
         </FormOverlay>
       )}
+
+      <Section>
+        <SectionTitle>Catégories</SectionTitle>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
+          <CategorySelect
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+          >
+            <option value="">Sélectionner une catégorie</option>
+            {categories
+              .filter(category => !task.categories?.some(c => c.id === category.id))
+              .map(category => (
+                <option key={category.id} value={category.id}>
+                  {category.nom}
+                </option>
+              ))
+            }
+          </CategorySelect>
+          <Button
+            variant="secondary"
+            onClick={handleAddCategory}
+            disabled={!selectedCategory}
+          >
+            Ajouter
+          </Button>
+        </div>
+        
+        {task.categories && task.categories.length > 0 ? (
+          <Categories>
+            {task.categories.map(category => (
+              <CategoryTag key={category.id}>
+                {category.nom}
+                <button onClick={() => handleRemoveCategory(category.id)}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
+              </CategoryTag>
+            ))}
+          </Categories>
+        ) : (
+          <p style={{ color: 'var(--text-secondary)', marginTop: '1rem' }}>
+            Aucune catégorie assignée
+          </p>
+        )}
+      </Section>
     </TaskDetailContainer>
   );
 };

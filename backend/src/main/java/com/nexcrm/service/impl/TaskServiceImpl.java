@@ -1,5 +1,6 @@
 package com.nexcrm.service.impl;
 
+import com.nexcrm.dto.NotificationDto;
 import com.nexcrm.dto.TaskDto;
 import com.nexcrm.model.Task;
 import com.nexcrm.model.User;
@@ -7,12 +8,15 @@ import com.nexcrm.model.Client;
 import com.nexcrm.repository.TaskRepository;
 import com.nexcrm.repository.UserRepository;
 import com.nexcrm.repository.ClientRepository;
+import com.nexcrm.service.NotificationService;
 import com.nexcrm.service.TaskService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,12 +25,14 @@ import java.util.HashSet;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 @Transactional
 public class TaskServiceImpl implements TaskService {
 
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
+    private final NotificationService notificationService;
 
     @Override
     public TaskDto create(TaskDto taskDto) {
@@ -46,13 +52,22 @@ public class TaskServiceImpl implements TaskService {
                             .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé")))
                     .collect(Collectors.toSet());
             task.setAssignedUsers(users);
-        }
-
-        // Assignation d'un client
-        if (taskDto.getClient() != null && taskDto.getClient().getId() != null) {
-            Client client = clientRepository.findById(taskDto.getClient().getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Client non trouvé"));
-            task.setClient(client);
+            
+            // Créer une notification pour chaque utilisateur assigné
+            Task savedTask = taskRepository.save(task);
+            for (User user : users) {
+                NotificationDto notificationDto = NotificationDto.builder()
+                        .message("Vous avez été assigné à la tâche : " + task.getTitre())
+                        .type("TASK_ASSIGNED")
+                        .recipientId(user.getId())
+                        .entityId(savedTask.getId())
+                        .entityType("TASK")
+                        .read(false)
+                        .build();
+                
+                notificationService.createNotification(notificationDto);
+            }
+            return TaskDto.fromEntity(savedTask);
         }
 
         Task savedTask = taskRepository.save(task);
@@ -71,6 +86,11 @@ public class TaskServiceImpl implements TaskService {
         existingTask.setStatut(taskDto.getStatut());
         existingTask.setCout(taskDto.getCout());
 
+        // Récupérer les utilisateurs actuellement assignés
+        Set<Long> currentUserIds = existingTask.getAssignedUsers().stream()
+                .map(User::getId)
+                .collect(Collectors.toSet());
+
         // Mise à jour des utilisateurs assignés
         if (taskDto.getAssignedUsers() != null) {
             Set<User> users = taskDto.getAssignedUsers().stream()
@@ -78,6 +98,25 @@ public class TaskServiceImpl implements TaskService {
                             .orElseThrow(() -> new IllegalArgumentException("Utilisateur non trouvé")))
                     .collect(Collectors.toSet());
             existingTask.setAssignedUsers(users);
+
+            // Créer des notifications pour les nouveaux utilisateurs assignés
+            Set<Long> newUserIds = users.stream()
+                    .map(User::getId)
+                    .filter(userId -> !currentUserIds.contains(userId))
+                    .collect(Collectors.toSet());
+
+            for (Long userId : newUserIds) {
+                NotificationDto notificationDto = NotificationDto.builder()
+                        .message("Vous avez été assigné à la tâche : " + existingTask.getTitre())
+                        .type("TASK_ASSIGNED")
+                        .recipientId(userId)
+                        .entityId(existingTask.getId())
+                        .entityType("TASK")
+                        .read(false)
+                        .build();
+                
+                notificationService.createNotification(notificationDto);
+            }
         } else {
             existingTask.setAssignedUsers(new HashSet<>());
         }
@@ -189,7 +228,28 @@ public class TaskServiceImpl implements TaskService {
         if (task.getAssignedUsers() == null) {
             task.setAssignedUsers(new HashSet<>());
         }
-        task.getAssignedUsers().add(user);
+
+        // Vérifier si l'utilisateur n'est pas déjà assigné
+        if (!task.getAssignedUsers().contains(user)) {
+            task.getAssignedUsers().add(user);
+            
+            // Créer une notification pour l'utilisateur assigné
+            NotificationDto notificationDto = NotificationDto.builder()
+                    .message("Vous avez été assigné à la tâche : " + task.getTitre())
+                    .type("TASK_ASSIGNED")
+                    .recipientId(userId)
+                    .entityId(taskId)
+                    .entityType("TASK")
+                    .read(false)
+                    .build();
+            
+            try {
+                notificationService.createNotification(notificationDto);
+                log.info("Notification créée pour l'utilisateur {} assigné à la tâche {}", userId, taskId);
+            } catch (Exception e) {
+                log.error("Erreur lors de la création de la notification pour l'utilisateur {} : {}", userId, e.getMessage());
+            }
+        }
         
         Task updatedTask = taskRepository.save(task);
         return TaskDto.fromEntity(updatedTask);

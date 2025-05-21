@@ -128,6 +128,22 @@ const AssignedUsers = styled.div`
   gap: 0.5rem;
 `;
 
+const Categories = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+`;
+
+const CategoryTag = styled.span`
+  font-size: 0.7rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  background: ${({ theme }) => theme.colors.primary}15;
+  color: ${({ theme }) => theme.colors.primary};
+  white-space: nowrap;
+`;
+
 const translateStatus = (status) => {
   const statusMap = {
     'A_FAIRE': 'À faire',
@@ -177,6 +193,16 @@ const TaskCard = ({ task }) => {
         <ContentArea>
           <Title>{task.titre}</Title>
           <Description>{task.description}</Description>
+          
+          {task.categories && task.categories.length > 0 && (
+            <Categories>
+              {task.categories.map(category => (
+                <CategoryTag key={category.id}>
+                  {category.nom}
+                </CategoryTag>
+              ))}
+            </Categories>
+          )}
           
           {task.assignedUsers && task.assignedUsers.length > 0 && (
             <AssignedUsers>

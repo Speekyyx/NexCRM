@@ -64,11 +64,37 @@ public class NotificationService {
     }
 
     @Transactional
-    public NotificationDto createNotification(NotificationDto dto) {
-        log.info("Création d'une notification pour utilisateur {}", dto.getRecipientId());
-        Notification notification = toEntity(dto);
-        Notification savedNotification = notificationRepository.save(notification);
-        return toDto(savedNotification);
+    public NotificationDto createNotification(NotificationDto notificationDto) {
+        log.info("Création d'une notification pour l'utilisateur {}", notificationDto.getRecipientId());
+        
+        try {
+            User recipient = userRepository.findById(notificationDto.getRecipientId())
+                    .orElseThrow(() -> new EntityNotFoundException("Destinataire non trouvé avec ID: " + notificationDto.getRecipientId()));
+
+            User sender = null;
+            if (notificationDto.getSenderId() != null) {
+                sender = userRepository.findById(notificationDto.getSenderId())
+                        .orElseThrow(() -> new EntityNotFoundException("Expéditeur non trouvé avec ID: " + notificationDto.getSenderId()));
+            }
+
+            Notification notification = Notification.builder()
+                    .message(notificationDto.getMessage())
+                    .type(notificationDto.getType())
+                    .recipient(recipient)
+                    .sender(sender)
+                    .entityId(notificationDto.getEntityId())
+                    .entityType(notificationDto.getEntityType())
+                    .read(notificationDto.isRead())
+                    .creationDate(LocalDateTime.now())
+                    .build();
+
+            Notification savedNotification = notificationRepository.save(notification);
+            log.info("Notification créée avec succès, ID: {}", savedNotification.getId());
+            return toDto(savedNotification);
+        } catch (Exception e) {
+            log.error("Erreur lors de la création de la notification: {}", e.getMessage());
+            throw e;
+        }
     }
 
     @Transactional
