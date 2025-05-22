@@ -61,11 +61,15 @@ public class Task {
     @Column(precision = 10, scale = 2)
     private BigDecimal cout;
 
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.EAGER, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
         name = "task_category",
-        joinColumns = @JoinColumn(name = "task_id"),
-        inverseJoinColumns = @JoinColumn(name = "category_id")
+        joinColumns = @JoinColumn(name = "task_id", referencedColumnName = "id",
+            foreignKey = @ForeignKey(name = "fk_task_category_task_id", 
+            foreignKeyDefinition = "FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE")),
+        inverseJoinColumns = @JoinColumn(name = "category_id", referencedColumnName = "id",
+            foreignKey = @ForeignKey(name = "fk_task_category_category_id", 
+            foreignKeyDefinition = "FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE CASCADE"))
     )
     private Set<Category> categories = new HashSet<>();
 

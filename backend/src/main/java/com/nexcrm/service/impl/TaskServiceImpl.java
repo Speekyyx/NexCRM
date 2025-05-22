@@ -5,9 +5,11 @@ import com.nexcrm.dto.TaskDto;
 import com.nexcrm.model.Task;
 import com.nexcrm.model.User;
 import com.nexcrm.model.Client;
+import com.nexcrm.model.Category;
 import com.nexcrm.repository.TaskRepository;
 import com.nexcrm.repository.UserRepository;
 import com.nexcrm.repository.ClientRepository;
+import com.nexcrm.repository.CategoryRepository;
 import com.nexcrm.service.NotificationService;
 import com.nexcrm.service.TaskService;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +34,7 @@ public class TaskServiceImpl implements TaskService {
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
     private final ClientRepository clientRepository;
+    private final CategoryRepository categoryRepository;
     private final NotificationService notificationService;
 
     @Override
@@ -44,6 +47,15 @@ public class TaskServiceImpl implements TaskService {
                 .statut(taskDto.getStatut() != null ? taskDto.getStatut() : Task.Status.A_FAIRE)
                 .cout(taskDto.getCout())
                 .build();
+
+        // Gestion des catégories
+        if (taskDto.getCategories() != null && !taskDto.getCategories().isEmpty()) {
+            Set<Category> categories = taskDto.getCategories().stream()
+                    .map(categoryDto -> categoryRepository.findById(categoryDto.getId())
+                            .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée avec l'ID: " + categoryDto.getId())))
+                    .collect(Collectors.toSet());
+            task.setCategories(categories);
+        }
 
         // Assignation des utilisateurs
         if (taskDto.getAssignedUsers() != null && !taskDto.getAssignedUsers().isEmpty()) {
@@ -76,8 +88,12 @@ public class TaskServiceImpl implements TaskService {
 
     @Override
     public TaskDto update(Long id, TaskDto taskDto) {
+        log.info("Mise à jour de la tâche {} avec les données: {}", id, taskDto);
         Task existingTask = taskRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Tâche non trouvée avec l'ID: " + id));
+
+        log.info("Tâche existante trouvée: {}", existingTask);
+        log.info("Catégories actuelles: {}", existingTask.getCategories());
 
         existingTask.setTitre(taskDto.getTitre());
         existingTask.setDescription(taskDto.getDescription());
@@ -85,6 +101,26 @@ public class TaskServiceImpl implements TaskService {
         existingTask.setPriorite(taskDto.getPriorite());
         existingTask.setStatut(taskDto.getStatut());
         existingTask.setCout(taskDto.getCout());
+
+        // Mise à jour des catégories
+        if (taskDto.getCategories() != null) {
+            log.info("Nouvelles catégories reçues dans le DTO: {}", taskDto.getCategories());
+            Set<Category> newCategories = taskDto.getCategories().stream()
+                    .map(categoryDto -> {
+                        log.info("Recherche de la catégorie avec l'ID: {}", categoryDto.getId());
+                        Category category = categoryRepository.findById(categoryDto.getId())
+                                .orElseThrow(() -> new IllegalArgumentException("Catégorie non trouvée avec l'ID: " + categoryDto.getId()));
+                        log.info("Catégorie trouvée: {}", category);
+                        return category;
+                    })
+                    .collect(Collectors.toSet());
+            log.info("Ensemble des nouvelles catégories avant setCategories: {}", newCategories);
+            existingTask.setCategories(newCategories);
+            log.info("Catégories de la tâche après setCategories: {}", existingTask.getCategories());
+        } else {
+            log.info("Aucune catégorie reçue dans le DTO");
+            existingTask.setCategories(new HashSet<>());
+        }
 
         // Récupérer les utilisateurs actuellement assignés
         Set<Long> currentUserIds = existingTask.getAssignedUsers().stream()
@@ -131,7 +167,21 @@ public class TaskServiceImpl implements TaskService {
         }
 
         Task updatedTask = taskRepository.save(existingTask);
-        return TaskDto.fromEntity(updatedTask);
+        log.info("Tâche sauvegardée avec les catégories: {}", updatedTask.getCategories());
+        
+        // Forcer le rechargement de la tâche pour s'assurer que toutes les relations sont correctement chargées
+        Task reloadedTask = taskRepository.findById(updatedTask.getId())
+                .orElseThrow(() -> new IllegalStateException("Impossible de recharger la tâche après la mise à jour"));
+        log.info("Tâche rechargée avec les catégories: {}", reloadedTask.getCategories());
+        log.info("Détails des catégories rechargées: {}", reloadedTask.getCategories().stream()
+                .map(cat -> String.format("ID: %d, Nom: %s", cat.getId(), cat.getNom()))
+                .collect(Collectors.joining(", ")));
+        
+        TaskDto result = TaskDto.fromEntity(reloadedTask);
+        log.info("DTO de la tâche à retourner: {}", result);
+        log.info("Catégories dans le DTO: {}", result.getCategories());
+        
+        return result;
     }
 
     @Override
@@ -145,8 +195,20 @@ public class TaskServiceImpl implements TaskService {
     @Override
     @Transactional(readOnly = true)
     public Optional<TaskDto> findById(Long id) {
-        return taskRepository.findById(id)
-                .map(TaskDto::fromEntity);
+        log.info("Recherche de la tâche avec l'ID: {}", id);
+        Optional<Task> taskOpt = taskRepository.findById(id);
+        
+        if (taskOpt.isPresent()) {
+            Task task = taskOpt.get();
+            log.info("Tâche trouvée: {}", task);
+            log.info("Catégories de la tâche: {}", task.getCategories());
+            TaskDto dto = TaskDto.fromEntity(task);
+            log.info("DTO de la tâche à retourner: {}", dto);
+            return Optional.of(dto);
+        }
+        
+        log.info("Aucune tâche trouvée avec l'ID: {}", id);
+        return Optional.empty();
     }
 
     @Override

@@ -4,36 +4,53 @@ import api from './api';
 const taskCache = {
   lastFetch: 0,
   data: {},
-  // Temps de validité du cache en ms (60 secondes)
-  VALIDITY: 60000,
+  // Temps de validité du cache en ms (1 seconde pour les tâches individuelles)
+  VALIDITY: 1000,
   // Drapeau pour indiquer si une requête est en cours
   pendingRequests: {}
 };
 
+// Fonction pour invalider complètement le cache
+const invalidateCache = () => {
+  console.log('Invalidation du cache des tâches');
+  taskCache.lastFetch = 0;
+  taskCache.data = {};
+};
+
+// Fonction pour invalider une entrée spécifique du cache
+const invalidateCacheEntry = (key) => {
+  console.log('Invalidation de l\'entrée du cache:', key);
+  delete taskCache.data[key];
+};
+
 // Fonction pour récupérer les données du cache
 const getCachedData = (key) => {
+  console.log('Vérification du cache pour la clé:', key);
   const now = Date.now();
   if (taskCache.data[key] && now - taskCache.lastFetch < taskCache.VALIDITY) {
+    console.log('Données trouvées dans le cache:', taskCache.data[key]);
     return taskCache.data[key];
   }
+  console.log('Pas de données valides dans le cache');
   return null;
 };
 
 // Fonction pour mettre à jour le cache
 const updateCache = (key, data) => {
-  taskCache.data[key] = data;
+  console.log('Mise à jour du cache pour la clé:', key, 'avec les données:', data);
   taskCache.lastFetch = Date.now();
+  taskCache.data[key] = data;
   return data;
+};
+
+// Fonction pour marquer une requête comme en cours
+const markRequestPending = (key, isPending) => {
+  taskCache.pendingRequests[key] = isPending;
 };
 
 // Fonction pour vérifier si une requête est en cours
 const isRequestPending = (key) => {
   return taskCache.pendingRequests[key];
-};
-
-// Fonction pour marquer une requête comme en cours
-const markRequestPending = (key, isPending = true) => {
-  taskCache.pendingRequests[key] = isPending;
 };
 
 const getAllTasks = async () => {
@@ -64,16 +81,29 @@ const getAllTasks = async () => {
 
 const getTaskById = async (id) => {
   const cacheKey = `task_${id}`;
-  const cachedData = getCachedData(cacheKey);
+  console.log('Récupération de la tâche:', id);
   
-  if (cachedData) {
-    return cachedData;
+  // Vérifier si une requête est déjà en cours pour cette tâche
+  if (isRequestPending(cacheKey)) {
+    console.log('Une requête est déjà en cours pour cette tâche, attente...');
+    await new Promise(resolve => setTimeout(resolve, 100));
+    return getTaskById(id);
   }
   
   try {
+    markRequestPending(cacheKey, true);
     const response = await api.get(`/tasks/${id}`);
-    return updateCache(cacheKey, response.data);
+    
+    // S'assurer que les catégories sont toujours un tableau
+    const taskData = {
+      ...response.data,
+      categories: Array.isArray(response.data.categories) ? response.data.categories : []
+    };
+    
+    markRequestPending(cacheKey, false);
+    return updateCache(cacheKey, taskData);
   } catch (error) {
+    markRequestPending(cacheKey, false);
     console.error(`Erreur lors de la récupération de la tâche ${id}:`, error);
     throw error;
   }
@@ -82,8 +112,7 @@ const getTaskById = async (id) => {
 const createTask = async (taskData) => {
   try {
     const response = await api.post('/tasks', taskData);
-    // Invalider le cache après création
-    taskCache.lastFetch = 0;
+    invalidateCache();
     return response.data;
   } catch (error) {
     console.error('Erreur lors de la création de la tâche:', error);
@@ -92,11 +121,44 @@ const createTask = async (taskData) => {
 };
 
 const updateTask = async (id, taskData) => {
+  const cacheKey = `task_${id}`;
+  console.log('Mise à jour de la tâche:', id);
+  console.log('Données de mise à jour avant normalisation:', taskData);
+  
   try {
-    const response = await api.put(`/tasks/${id}`, taskData);
-    // Invalider le cache après mise à jour
-    taskCache.lastFetch = 0;
-    return response.data;
+    // S'assurer que les catégories sont correctement formatées avant l'envoi
+    const normalizedTaskData = {
+      ...taskData,
+      categories: Array.isArray(taskData.categories) 
+        ? taskData.categories.map(cat => ({
+            id: cat.id,
+            nom: cat.nom,
+            description: cat.description
+          }))
+        : []
+    };
+    
+    console.log('Données normalisées à envoyer:', normalizedTaskData);
+    const response = await api.put(`/tasks/${id}`, normalizedTaskData);
+    console.log('Réponse du serveur:', response.data);
+    
+    // S'assurer que les catégories sont correctement formatées dans la réponse
+    const updatedTaskData = {
+      ...response.data,
+      categories: Array.isArray(response.data.categories) 
+        ? response.data.categories.map(cat => ({
+            id: cat.id,
+            nom: cat.nom,
+            description: cat.description
+          }))
+        : []
+    };
+    
+    // Mettre à jour le cache avec les nouvelles données
+    updateCache(cacheKey, updatedTaskData);
+    invalidateCacheEntry('allTasks'); // Invalider le cache des tâches
+    
+    return updatedTaskData;
   } catch (error) {
     console.error(`Erreur lors de la mise à jour de la tâche ${id}:`, error);
     throw error;
@@ -106,8 +168,7 @@ const updateTask = async (id, taskData) => {
 const deleteTask = async (id) => {
   try {
     await api.delete(`/tasks/${id}`);
-    // Invalider le cache après suppression
-    taskCache.lastFetch = 0;
+    invalidateCache();
     return true;
   } catch (error) {
     console.error(`Erreur lors de la suppression de la tâche ${id}:`, error);
@@ -118,8 +179,7 @@ const deleteTask = async (id) => {
 const updateTaskStatus = async (id, status) => {
   try {
     const response = await api.patch(`/tasks/${id}/status/${status}`);
-    // Invalider le cache après mise à jour du statut
-    taskCache.lastFetch = 0;
+    invalidateCache();
     return response.data;
   } catch (error) {
     console.error(`Erreur lors de la mise à jour du statut de la tâche ${id}:`, error);
@@ -130,8 +190,7 @@ const updateTaskStatus = async (id, status) => {
 const assignTaskToUser = async (taskId, userId) => {
   try {
     const response = await api.patch(`/tasks/${taskId}/assign/${userId}`);
-    // Invalider le cache après assignation
-    taskCache.lastFetch = 0;
+    invalidateCache();
     return response.data;
   } catch (error) {
     console.error(`Erreur lors de l'assignation de la tâche ${taskId} à l'utilisateur ${userId}:`, error);
@@ -142,11 +201,10 @@ const assignTaskToUser = async (taskId, userId) => {
 const unassignUser = async (taskId, userId) => {
   try {
     const response = await api.patch(`/tasks/${taskId}/unassign/${userId}`);
-    // Invalider le cache après désassignation
-    taskCache.lastFetch = 0;
+    invalidateCache();
     return response.data;
   } catch (error) {
-    console.error(`Erreur lors du retrait de l'utilisateur ${userId} de la tâche ${taskId}:`, error);
+    console.error(`Erreur lors de la désassignation de l'utilisateur ${userId} de la tâche ${taskId}:`, error);
     throw error;
   }
 };
@@ -201,12 +259,6 @@ const getTasksByPriority = async (priority) => {
     console.error(`Erreur lors de la récupération des tâches par priorité ${priority}:`, error);
     throw error;
   }
-};
-
-// Fonction pour invalider manuellement le cache
-const invalidateCache = () => {
-  taskCache.lastFetch = 0;
-  taskCache.data = {};
 };
 
 export const taskService = {

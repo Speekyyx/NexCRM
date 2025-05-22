@@ -7,6 +7,7 @@ import { commentService } from '../services/commentService';
 import { userService } from '../services/userService';
 import { clientService } from '../services/clientService';
 import { attachmentService } from '../services/attachmentService';
+import { categoryService } from '../services/categoryService';
 import Button from '../components/Button';
 
 const TaskDetailContainer = styled(motion.div)`
@@ -819,6 +820,7 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
 
   useEffect(() => {
     if (activeTaskId) {
+      console.log('TaskDetail monté - ID de la tâche:', activeTaskId);
       fetchTask();
       fetchComments();
       fetchDevelopers();
@@ -829,31 +831,35 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
   }, [activeTaskId]);
 
   useEffect(() => {
-    if (task && !editedTask) {
+    if (task) {
+      console.log('Task mis à jour:', task);
+      console.log('Catégories de la tâche:', task.categories);
       setEditedTask({
         ...task,
         assignedUsers: task.assignedUsers || [],
         clientId: task.client?.id || '',
+        categories: Array.isArray(task.categories) ? task.categories : []
       });
-      // Initialiser les lignes d'assignation avec les utilisateurs existants
-      if (task.assignedUsers && task.assignedUsers.length > 0) {
-        setAssignmentRows(task.assignedUsers.map(user => ({ 
-          id: Date.now() + user.id, 
-          userId: user.id 
-        })));
-      }
     }
   }, [task]);
 
   const fetchTask = async () => {
     try {
+      console.log('Chargement de la tâche:', activeTaskId);
       const taskData = await taskService.getTaskById(activeTaskId);
+      console.log('Données de la tâche reçues:', taskData);
+      console.log('Catégories de la tâche:', taskData.categories);
+      
+      // S'assurer que les catégories sont toujours un tableau
+      taskData.categories = taskData.categories || [];
+      
       setTask(taskData);
       if (updateTaskInList) {
         updateTaskInList(taskData);
       }
     } catch (err) {
       console.error(`Erreur lors du chargement de la tâche ${activeTaskId}:`, err);
+      console.error('Stack trace:', err.stack);
       setError('Impossible de charger les détails de la tâche. Veuillez réessayer.');
     } finally {
       setLoading(false);
@@ -898,10 +904,14 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get('/api/categories');
-      setCategories(response.data);
+      console.log('Chargement des catégories...');
+      const data = await categoryService.getAllCategories();
+      console.log('Catégories disponibles reçues:', data);
+      setCategories(data);
     } catch (err) {
       console.error('Erreur lors du chargement des catégories:', err);
+      console.error('Stack trace:', err.stack);
+      alert('Erreur lors du chargement des catégories. Veuillez rafraîchir la page.');
     }
   };
 
@@ -929,11 +939,8 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      const updatedTask = await taskService.updateTask(activeTaskId, editedTask);
-      setTask(updatedTask);
-      if (updateTaskInList) {
-        updateTaskInList(updatedTask);
-      }
+      await taskService.updateTask(activeTaskId, editedTask);
+      await fetchTask(); // Recharger les données complètes
       setShowEditForm(false);
     } catch (error) {
       console.error('Erreur lors de la mise à jour de la tâche:', error);
@@ -976,6 +983,7 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
         ...task,
         assignedUsers: task.assignedUsers || [],
         clientId: task.client?.id || '',
+        categories: task.categories || []
       });
     }
   };
@@ -1308,11 +1316,8 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
         assignedUsers: task.assignedUsers.filter(user => user.id !== userId)
       };
       
-      const result = await taskService.updateTask(activeTaskId, updatedTask);
-      setTask(result);
-      if (updateTaskInList) {
-        updateTaskInList(result);
-      }
+      await taskService.updateTask(activeTaskId, updatedTask);
+      await fetchTask(); // Recharger les données complètes
     } catch (err) {
       console.error('Erreur lors de la suppression de l\'assignation:', err);
       alert('Impossible de retirer l\'utilisateur de la tâche. Veuillez réessayer.');
@@ -1323,41 +1328,81 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
     if (!selectedCategory) return;
     
     try {
+      console.log('Ajout de la catégorie:', selectedCategory);
+      console.log('État actuel de la tâche:', task);
+      
+      const categoryToAdd = categories.find(c => c.id === parseInt(selectedCategory));
+      if (!categoryToAdd) {
+        console.error('Catégorie non trouvée dans la liste des catégories disponibles');
+        return;
+      }
+      
+      // Créer une copie profonde de la tâche
       const updatedTask = {
         ...task,
-        categories: [...(task.categories || []), 
-          categories.find(c => c.id === parseInt(selectedCategory))
+        categories: [
+          ...(Array.isArray(task.categories) ? task.categories : []),
+          {
+            id: categoryToAdd.id,
+            nom: categoryToAdd.nom,
+            description: categoryToAdd.description
+          }
         ]
       };
       
+      console.log('Tâche mise à jour à envoyer:', updatedTask);
       const result = await taskService.updateTask(activeTaskId, updatedTask);
-      setTask(result);
-      setSelectedCategory('');
+      console.log('Mise à jour réussie:', result);
       
+      // Forcer le rechargement de la tâche pour s'assurer d'avoir les données à jour
+      await fetchTask();
+      
+      // Mettre à jour l'état local
       if (updateTaskInList) {
         updateTaskInList(result);
       }
+      
+      setSelectedCategory('');
     } catch (err) {
       console.error('Erreur lors de l\'ajout de la catégorie:', err);
+      console.error('Stack trace:', err.stack);
       alert('Impossible d\'ajouter la catégorie. Veuillez réessayer.');
     }
   };
   
   const handleRemoveCategory = async (categoryId) => {
     try {
+      console.log('Suppression de la catégorie:', categoryId);
+      console.log('État actuel de la tâche:', task);
+      
+      // Créer une copie profonde de la tâche
       const updatedTask = {
         ...task,
-        categories: task.categories.filter(c => c.id !== categoryId)
+        categories: Array.isArray(task.categories) 
+          ? task.categories
+              .filter(c => c.id !== categoryId)
+              .map(c => ({
+                id: c.id,
+                nom: c.nom,
+                description: c.description
+              }))
+          : []
       };
       
+      console.log('Tâche mise à jour à envoyer:', updatedTask);
       const result = await taskService.updateTask(activeTaskId, updatedTask);
-      setTask(result);
+      console.log('Suppression réussie:', result);
       
+      // Forcer le rechargement de la tâche pour s'assurer d'avoir les données à jour
+      await fetchTask();
+      
+      // Mettre à jour l'état local
       if (updateTaskInList) {
         updateTaskInList(result);
       }
     } catch (err) {
       console.error('Erreur lors de la suppression de la catégorie:', err);
+      console.error('Stack trace:', err.stack);
       alert('Impossible de supprimer la catégorie. Veuillez réessayer.');
     }
   };
@@ -1832,6 +1877,34 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
                 </InputGroup>
               </FormRow>
 
+              <FormRow>
+                <InputGroup>
+                  <Label>Catégories</Label>
+                  <CategorySelect
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value)}
+                  >
+                    <option value="">Sélectionner une catégorie</option>
+                    {categories
+                      .filter(category => !task.categories?.some(c => c.id === category.id))
+                      .map(category => (
+                        <option key={category.id} value={category.id}>
+                          {category.nom}
+                        </option>
+                      ))
+                    }
+                  </CategorySelect>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={handleAddCategory}
+                    disabled={!selectedCategory}
+                  >
+                    Ajouter
+                  </Button>
+                </InputGroup>
+              </FormRow>
+
               <ButtonGroup>
                 <Button 
                   type="submit" 
@@ -1883,7 +1956,10 @@ const TaskDetail = ({ taskId: propTaskId, onClose, updateTaskInList, isModal = f
             {task.categories.map(category => (
               <CategoryTag key={category.id}>
                 {category.nom}
-                <button onClick={() => handleRemoveCategory(category.id)}>
+                <button 
+                  type="button"
+                  onClick={() => handleRemoveCategory(category.id)}
+                >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>

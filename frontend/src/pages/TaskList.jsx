@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { motion } from 'framer-motion';
 import { taskService } from '../services/taskService';
+import { categoryService } from '../services/categoryService';
 import api from '../services/api';
 import TaskCard from '../components/TaskCard';
 import Button from '../components/Button';
@@ -309,6 +310,38 @@ const ModalOverlay = styled(motion.div)`
   backdrop-filter: blur(2px);
 `;
 
+const CategorySelect = styled.select`
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: ${({ theme }) => theme.borderRadius.md};
+  padding: 0.75rem;
+  color: ${({ theme }) => theme.colors.text};
+  font-size: 1rem;
+  
+  &:focus {
+    outline: none;
+    border-color: ${({ theme }) => theme.colors.primary};
+  }
+  
+  option {
+    background: #1a1a2e;
+  }
+`;
+
+const CategoryTag = styled.span`
+  background: ${({ theme }) => theme.colors.primary};
+  color: ${({ theme }) => theme.colors.background};
+  padding: 0.25rem 0.5rem;
+  border-radius: ${({ theme }) => theme.borderRadius.sm};
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+`;
+
+const Categories = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+`;
+
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -317,6 +350,8 @@ const TaskList = () => {
   const [showForm, setShowForm] = useState(false);
   const [developers, setDevelopers] = useState([]);
   const [clients, setClients] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [newTask, setNewTask] = useState({
     titre: '',
     description: '',
@@ -325,7 +360,8 @@ const TaskList = () => {
     dateEcheance: '',
     dateCreation: new Date().toISOString().split('T')[0],
     assignedUsers: [],
-    client: { id: '' }
+    client: { id: '' },
+    categories: []
   });
   
   const [assignmentRows, setAssignmentRows] = useState([{ id: Date.now() }]);
@@ -336,6 +372,7 @@ const TaskList = () => {
     fetchTasks();
     fetchDevelopers();
     fetchClients();
+    fetchCategories();
   }, [filter]);
   
   const fetchTasks = async () => {
@@ -386,6 +423,15 @@ const TaskList = () => {
     }
   };
   
+  const fetchCategories = async () => {
+    try {
+      const data = await categoryService.getAllCategories();
+      setCategories(data);
+    } catch (err) {
+      console.error('Erreur lors du chargement des catégories:', err);
+    }
+  };
+  
   const handleCreateTask = () => {
     setShowForm(true);
     setNewTask({
@@ -404,7 +450,8 @@ const TaskList = () => {
       dateEcheance: '',
       dateCreation: new Date().toISOString().split('T')[0],
       assignedUsers: [],
-      client: { id: '' }
+      client: { id: '' },
+      categories: []
     });
   };
   
@@ -467,13 +514,59 @@ const TaskList = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const createdTask = await taskService.createTask(newTask);
-      setTasks([...tasks, createdTask]);
-      handleCloseForm();
-      fetchTasks();
+      // S'assurer que les catégories sont toujours un tableau
+      const taskDataToSubmit = {
+        ...newTask,
+        categories: Array.isArray(newTask.categories) ? newTask.categories : []
+      };
+      
+      const createdTask = await taskService.createTask(taskDataToSubmit);
+      console.log('Tâche créée:', createdTask);
+      
+      // Mettre à jour la liste des tâches
+      setTasks(prevTasks => [...prevTasks, createdTask]);
+      
+      // Réinitialiser le formulaire
+      setNewTask({
+        titre: '',
+        description: '',
+        priorite: 'MOYENNE',
+        statut: 'A_FAIRE',
+        dateEcheance: '',
+        dateCreation: new Date().toISOString().split('T')[0],
+        assignedUsers: [],
+        client: { id: '' },
+        categories: []
+      });
+      setSelectedCategory('');
+      setAssignmentRows([{ id: Date.now() }]);
+      setShowForm(false);
     } catch (error) {
       console.error('Erreur lors de la création de la tâche:', error);
+      alert('Impossible de créer la tâche. Veuillez réessayer.');
     }
+  };
+  
+  const handleAddCategory = () => {
+    if (selectedCategory) {
+      const categoryToAdd = categories.find(c => c.id === parseInt(selectedCategory));
+      if (categoryToAdd) {
+        setNewTask(prevTask => ({
+          ...prevTask,
+          categories: [...(Array.isArray(prevTask.categories) ? prevTask.categories : []), categoryToAdd]
+        }));
+        setSelectedCategory('');
+      }
+    }
+  };
+  
+  const handleRemoveCategory = (categoryId) => {
+    setNewTask(prevTask => ({
+      ...prevTask,
+      categories: Array.isArray(prevTask.categories) 
+        ? prevTask.categories.filter(c => c.id !== categoryId)
+        : []
+    }));
   };
   
   const getFilteredTasks = () => {
@@ -638,6 +731,53 @@ const TaskList = () => {
                         </option>
                       ))}
                     </Select>
+                  </InputGroup>
+                </FormRow>
+                
+                <FormRow>
+                  <InputGroup>
+                    <Label>Catégories</Label>
+                    <CategorySelect
+                      value={selectedCategory}
+                      onChange={(e) => setSelectedCategory(e.target.value)}
+                    >
+                      <option value="">Sélectionner une catégorie</option>
+                      {categories
+                        .filter(category => !newTask.categories?.some(c => c.id === category.id))
+                        .map(category => (
+                          <option key={category.id} value={category.id}>
+                            {category.nom}
+                          </option>
+                        ))
+                      }
+                    </CategorySelect>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddCategory}
+                      style={{ marginTop: '0.5rem' }}
+                      disabled={!selectedCategory}
+                    >
+                      Ajouter la catégorie
+                    </Button>
+                    
+                    {newTask.categories && newTask.categories.length > 0 && (
+                      <Categories>
+                        {newTask.categories.map(category => (
+                          <CategoryTag key={category.id}>
+                            {category.nom}
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveCategory(category.id)}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+                          </CategoryTag>
+                        ))}
+                      </Categories>
+                    )}
                   </InputGroup>
                 </FormRow>
                 

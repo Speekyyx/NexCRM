@@ -6,6 +6,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,6 +18,7 @@ import java.util.HashSet;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Slf4j
 public class TaskDto {
     private Long id;
     private String titre;
@@ -31,7 +33,16 @@ public class TaskDto {
     private LocalDate dateCreation;
 
     public static TaskDto fromEntity(Task task) {
-        return TaskDto.builder()
+        log.debug("Conversion de Task en TaskDto - ID: {}", task.getId());
+        if (task.getCategories() != null) {
+            log.debug("Catégories de la tâche avant conversion: {}", 
+                task.getCategories().stream()
+                    .map(cat -> String.format("ID: %d, Nom: %s", cat.getId(), cat.getNom()))
+                    .collect(Collectors.joining(", "))
+            );
+        }
+        
+        TaskDto dto = TaskDto.builder()
                 .id(task.getId())
                 .titre(task.getTitre())
                 .description(task.getDescription())
@@ -47,8 +58,18 @@ public class TaskDto {
                 .categories(task.getCategories() != null ? 
                         task.getCategories().stream()
                                 .map(CategoryDto::fromEntity)
-                                .collect(Collectors.toSet()) : null)
+                                .collect(Collectors.toSet()) : new HashSet<>())
                 .dateCreation(task.getDateCreation())
                 .build();
+                
+        if (dto.getCategories() != null) {
+            log.debug("Catégories dans le DTO après conversion: {}", 
+                dto.getCategories().stream()
+                    .map(cat -> String.format("ID: %d, Nom: %s", cat.getId(), cat.getNom()))
+                    .collect(Collectors.joining(", "))
+            );
+        }
+        
+        return dto;
     }
 } 
